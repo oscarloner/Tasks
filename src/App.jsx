@@ -501,7 +501,7 @@ function TaskApp({ user, onLogout }) {
       {sidebar && isMobile && <div className="sidebar-overlay" onClick={() => setSidebar(false)} />}
 
       {/* Sidebar */}
-      <div style={{ width: sidebar ? 256 : 0, minWidth: sidebar ? 256 : 0, background: W, borderRight: `1px solid ${BD}`, transition: "all .3s cubic-bezier(.4,0,.2,1)", overflow: "hidden", display: "flex", flexDirection: "column", height: "100vh", position: "sticky", top: 0, position: isMobile ? "fixed" : "relative", top: 0, left: 0, bottom: 0, zIndex: 50, boxShadow: sidebar && isMobile ? "4px 0 24px rgba(26,23,21,.1)" : "none" }}>
+      <div style={{ width: sidebar ? 256 : 0, minWidth: sidebar ? 256 : 0, background: W, borderRight: `1px solid ${BD}`, transition: "all .3s cubic-bezier(.4,0,.2,1)", overflow: "hidden", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, height: "100vh", zIndex: 50, boxShadow: sidebar && isMobile ? "4px 0 24px rgba(26,23,21,.1)" : "none" }}>
         <div style={{ padding: "28px 22px 20px", borderBottom: `1px solid ${BD}` }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 22, color: T1 }}>Tasks</div>
@@ -554,7 +554,7 @@ function TaskApp({ user, onLogout }) {
       </div>
 
       {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, marginLeft: isMobile ? 0 : (sidebar ? 256 : 0), transition: "margin-left .3s cubic-bezier(.4,0,.2,1)" }}>
         <div style={{ padding: isMobile ? "14px 16px" : "18px 36px", borderBottom: `1px solid ${BD}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: W, gap: 8, position: "sticky", top: 0, zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             {isMobile && <button onClick={() => setSidebar(!sidebar)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", padding: "6px", borderRadius: 6, display: "flex" }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.menu /></button>}
@@ -643,7 +643,7 @@ function TaskApp({ user, onLogout }) {
       </div>
 
       {/* Add task modal */}
-      {addOpen && <Modal onClose={() => setAddOpen(false)}><div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>New task</div><Lbl>Title</Lbl><input autoFocus value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} onKeyDown={e => e.key === "Enter" && add()} style={inp} placeholder="What needs to be done?" /><Lbl>Project</Lbl><select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={inp}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select><Lbl>Priority</Lbl><div style={{ display: "flex", gap: 8, marginBottom: 20 }}>{["high", "medium", "low"].map(p => <button key={p} onClick={() => setForm({ ...form, priority: p })} style={pbtn(form.priority === p, p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div><Lbl>Notes</Lbl><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Additional details..." /><button onClick={addTask} style={primBtn}>Add task</button></Modal>}
+      {addOpen && <Modal onClose={() => setAddOpen(false)}><div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>New task</div><Lbl>Title</Lbl><input autoFocus value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} onKeyDown={e => e.key === "Enter" && addTask()} style={inp} placeholder="What needs to be done?" /><Lbl>Project</Lbl><select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={inp}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select><Lbl>Priority</Lbl><div style={{ display: "flex", gap: 8, marginBottom: 20 }}>{["high", "medium", "low"].map(p => <button key={p} onClick={() => setForm({ ...form, priority: p })} style={pbtn(form.priority === p, p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div><Lbl>Notes</Lbl><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Additional details..." /><button onClick={addTask} style={primBtn}>Add task</button></Modal>}
 
       {/* Edit task modal */}
       {editing && <Modal onClose={() => setEditing(null)}>
