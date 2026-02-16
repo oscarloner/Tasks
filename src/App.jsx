@@ -266,12 +266,29 @@ function TaskApp({ user, onLogout }) {
   const [suggested, setSuggested] = useState(null);
   const [dragId, setDragId] = useState(null);
   const [overId, setOverId] = useState(null);
-  const [sidebar, setSidebar] = useState(true);
+  const [sidebar, setSidebar] = useState(false);
   const [form, setForm] = useState({ title: "", notes: "", project: "", priority: "medium" });
   const [mins, setMins] = useState(60);
   const [projModal, setProjModal] = useState(false);
   const [newProjName, setNewProjName] = useState("");
   const [editingProj, setEditingProj] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const check = () => {
+      const m = window.innerWidth <= 768;
+      setIsMobile(m);
+      if (!m && !sidebar) setSidebar(true);
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  const selectTab = (id) => {
+    setTab(id);
+    if (isMobile) setSidebar(false);
+  };
 
   const uid = user.id;
 
@@ -402,10 +419,13 @@ function TaskApp({ user, onLogout }) {
     <div style={{ minHeight: "100vh", background: BG, color: T1, fontFamily: "'Satoshi', 'Helvetica Neue', sans-serif", display: "flex" }}>
       <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
       <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet" />
-      <style>{`*{box-sizing:border-box}::selection{background:${AM}}input:focus,textarea:focus,select:focus{outline:none;border-color:${AC}!important}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}.task-card{animation:fadeIn .25s ease both}.task-card:hover .grip-handle{opacity:1}.grip-handle{opacity:0;transition:opacity .15s}.action-btn{opacity:0;transition:all .15s}.task-card:hover .action-btn{opacity:1}.sb{transition:all .15s}.sb:hover{background:${AL};color:${AC}}.modal-content{animation:modalIn .2s ease both}input,textarea,select{font-family:'Satoshi',sans-serif}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${BD};border-radius:3px}`}</style>
+      <style>{`*{box-sizing:border-box}::selection{background:${AM}}input:focus,textarea:focus,select:focus{outline:none;border-color:${AC}!important}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}.task-card{animation:fadeIn .25s ease both}.task-card:hover .grip-handle{opacity:1}.grip-handle{opacity:0;transition:opacity .15s}@media(max-width:640px){.grip-handle{opacity:1!important}.action-btn{opacity:1!important}}.action-btn{opacity:0;transition:all .15s}.task-card:hover .action-btn{opacity:1}.sb{transition:all .15s}.sb:hover{background:${AL};color:${AC}}.modal-content{animation:modalIn .2s ease both}input,textarea,select{font-family:'Satoshi',sans-serif;font-size:16px!important}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${BD};border-radius:3px}.sidebar-overlay{display:none}@media(max-width:768px){.sidebar-overlay{display:block;position:fixed;inset:0;background:rgba(26,23,21,.3);z-index:49}}`}</style>
+
+      {/* Sidebar overlay for mobile */}
+      {sidebar && isMobile && <div className="sidebar-overlay" onClick={() => setSidebar(false)} />}
 
       {/* Sidebar */}
-      <div style={{ width: sidebar ? 256 : 0, minWidth: sidebar ? 256 : 0, background: W, borderRight: `1px solid ${BD}`, transition: "all .3s cubic-bezier(.4,0,.2,1)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ width: sidebar ? 256 : 0, minWidth: sidebar ? 256 : 0, background: W, borderRight: `1px solid ${BD}`, transition: "all .3s cubic-bezier(.4,0,.2,1)", overflow: "hidden", display: "flex", flexDirection: "column", position: isMobile ? "fixed" : "relative", top: 0, left: 0, bottom: 0, zIndex: 50, boxShadow: sidebar && isMobile ? "4px 0 24px rgba(26,23,21,.1)" : "none" }}>
         <div style={{ padding: "28px 22px 20px", borderBottom: `1px solid ${BD}` }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 22, color: T1 }}>Tasks</div>
@@ -424,7 +444,7 @@ function TaskApp({ user, onLogout }) {
           </div>
 
           {/* Overview tab */}
-          <button className="sb" onClick={() => setTab("overview")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 12px", border: "none", borderRadius: 8, background: tab === "overview" ? AL : "transparent", color: tab === "overview" ? AC : T2, cursor: "pointer", fontSize: 13.5, fontWeight: tab === "overview" ? 600 : 500, textAlign: "left", marginBottom: 1, fontFamily: "'Satoshi', sans-serif" }}>
+          <button className="sb" onClick={() => selectTab("overview")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 12px", border: "none", borderRadius: 8, background: tab === "overview" ? AL : "transparent", color: tab === "overview" ? AC : T2, cursor: "pointer", fontSize: 13.5, fontWeight: tab === "overview" ? 600 : 500, textAlign: "left", marginBottom: 1, fontFamily: "'Satoshi', sans-serif" }}>
             <span style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", background: tab === "overview" ? AC : "#F0ECE7" }}><IC.overview style={{ color: tab === "overview" ? "#fff" : T3 }} /></span>
             <span style={{ flex: 1 }}>Overview</span>
             <span style={{ fontSize: 11, fontWeight: 600, color: tab === "overview" ? AC : T3 }}>{totA}</span>
@@ -434,7 +454,7 @@ function TaskApp({ user, onLogout }) {
           {projects.map((p, i) => {
             const c = tasks.filter(t => t.project === p.id && !t.done).length;
             const a = tab === p.id;
-            return (<button key={p.id} className="sb" onClick={() => setTab(p.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 12px", border: "none", borderRadius: 8, background: a ? AL : "transparent", color: a ? AC : T2, cursor: "pointer", fontSize: 13.5, fontWeight: a ? 600 : 500, textAlign: "left", marginBottom: 1, animation: `slideIn .2s ease ${i * .03}s both`, fontFamily: "'Satoshi', sans-serif" }}>
+            return (<button key={p.id} className="sb" onClick={() => selectTab(p.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 12px", border: "none", borderRadius: 8, background: a ? AL : "transparent", color: a ? AC : T2, cursor: "pointer", fontSize: 13.5, fontWeight: a ? 600 : 500, textAlign: "left", marginBottom: 1, animation: `slideIn .2s ease ${i * .03}s both`, fontFamily: "'Satoshi', sans-serif" }}>
               <span style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", background: a ? AC : "#F0ECE7" }}><IC.folder style={{ color: a ? "#fff" : T3 }} /></span>
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
               {c > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: a ? AC : T3 }}>{c}</span>}
@@ -458,10 +478,10 @@ function TaskApp({ user, onLogout }) {
 
       {/* Main */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        <div style={{ padding: "18px 36px", borderBottom: `1px solid ${BD}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: W }}>
+        <div style={{ padding: isMobile ? "14px 16px" : "18px 36px", borderBottom: `1px solid ${BD}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: W, gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <button onClick={() => setSidebar(!sidebar)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", padding: "6px", borderRadius: 6, display: "flex" }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.menu /></button>
-            <h1 style={{ margin: 0, fontSize: 26, fontWeight: 400, fontFamily: "'Instrument Serif', serif", color: T1, letterSpacing: "-.02em" }}>
+            <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 26, fontWeight: 400, fontFamily: "'Instrument Serif', serif", color: T1, letterSpacing: "-.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {tab === "overview" ? "Overview" : projName(tab)}
             </h1>
             {tab !== "overview" && (
@@ -470,13 +490,13 @@ function TaskApp({ user, onLogout }) {
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button onClick={load} title="Refresh" style={{ background: "none", border: "none", color: T3, cursor: "pointer", padding: "6px", borderRadius: 6, display: "flex" }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.sync /></button>
-            <button onClick={() => { setForm({ title: "", notes: "", project: tab === "overview" ? (projects[0]?.id || "") : tab, priority: "medium" }); setAddOpen(true); }} disabled={projects.length === 0} style={{ padding: "9px 18px", border: "none", borderRadius: 9, background: projects.length === 0 ? T3 : T1, color: W, cursor: projects.length === 0 ? "default" : "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 7, transition: "all .15s", fontFamily: "'Satoshi', sans-serif", opacity: projects.length === 0 ? 0.5 : 1 }} onMouseEnter={e => { if (projects.length > 0) { e.currentTarget.style.background = AC; e.currentTarget.style.transform = "translateY(-1px)"; } }} onMouseLeave={e => { if (projects.length > 0) { e.currentTarget.style.background = T1; e.currentTarget.style.transform = "translateY(0)"; } }}><IC.plus /> New task</button>
+            <button onClick={() => { setForm({ title: "", notes: "", project: tab === "overview" ? (projects[0]?.id || "") : tab, priority: "medium" }); setAddOpen(true); }} disabled={projects.length === 0} style={{ padding: isMobile ? "9px 12px" : "9px 18px", border: "none", borderRadius: 9, background: projects.length === 0 ? T3 : T1, color: W, cursor: projects.length === 0 ? "default" : "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 7, transition: "all .15s", fontFamily: "'Satoshi', sans-serif", opacity: projects.length === 0 ? 0.5 : 1, flexShrink: 0 }} onMouseEnter={e => { if (projects.length > 0) { e.currentTarget.style.background = AC; e.currentTarget.style.transform = "translateY(-1px)"; } }} onMouseLeave={e => { if (projects.length > 0) { e.currentTarget.style.background = T1; e.currentTarget.style.transform = "translateY(0)"; } }}><IC.plus />{!isMobile && " New task"}</button>
           </div>
         </div>
 
         {/* Focus suggestion */}
         {suggested && (
-          <div style={{ margin: "22px 36px 0", padding: "20px 24px", background: AL, border: `1px solid ${AM}`, borderRadius: 14, animation: "fadeIn .3s ease both" }}>
+          <div style={{ margin: isMobile ? "16px 16px 0" : "22px 36px 0", padding: isMobile ? "16px" : "20px 24px", background: AL, border: `1px solid ${AM}`, borderRadius: 14, animation: "fadeIn .3s ease both" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14, color: AC }}><IC.zap /> Focus session — {mins} min</div>
               <button onClick={() => setSuggested(null)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex" }}><IC.x /></button>
@@ -493,14 +513,14 @@ function TaskApp({ user, onLogout }) {
         )}
 
         {/* Content */}
-        <div style={{ flex: 1, overflow: "auto", padding: "28px 36px 80px" }}>
+        <div style={{ flex: 1, overflow: "auto", padding: isMobile ? "20px 16px 80px" : "28px 36px 80px" }}>
           {tab === "overview" ? (
             <div>
               {projects.length > 0 && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(170px,1fr))", gap: 12, marginBottom: 36 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fill,minmax(170px,1fr))", gap: 12, marginBottom: 36 }}>
                   {projects.map((p, i) => {
                     const pt = tasks.filter(t => t.project === p.id && !t.done), hc = pt.filter(t => t.priority === "high").length;
-                    return (<button key={p.id} onClick={() => setTab(p.id)} style={{ padding: "18px 16px", background: W, border: `1px solid ${BD}`, borderRadius: 12, cursor: "pointer", textAlign: "left", transition: "all .2s", animation: `fadeIn .3s ease ${i * .05}s both`, fontFamily: "'Satoshi', sans-serif" }} onMouseEnter={e => { e.currentTarget.style.borderColor = AM; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(212,96,10,.08)"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = BD; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
+                    return (<button key={p.id} onClick={() => selectTab(p.id)} style={{ padding: "18px 16px", background: W, border: `1px solid ${BD}`, borderRadius: 12, cursor: "pointer", textAlign: "left", transition: "all .2s", animation: `fadeIn .3s ease ${i * .05}s both`, fontFamily: "'Satoshi', sans-serif" }} onMouseEnter={e => { e.currentTarget.style.borderColor = AM; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(212,96,10,.08)"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = BD; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
                       <div style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#F0ECE7", marginBottom: 10, color: T2 }}><IC.folder /></div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: T1, marginBottom: 3 }}>{p.name}</div>
                       <div style={{ fontSize: 12, color: T3, fontWeight: 500 }}>{pt.length} task{pt.length !== 1 ? "s" : ""}{hc > 0 && <span style={{ color: AC }}> / {hc} urgent</span>}</div>
@@ -570,7 +590,7 @@ function Card({ task: t, index: i, showProj, isDone, projName, onToggle, onEdit,
   return (
     <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: overId === t.id ? AL : dragId === t.id ? "#F5F2EE" : W, border: `1px solid ${overId === t.id ? AM : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .4 : 1, transition: "all .15s", animationDelay: `${i * .03}s` }}>
       {!isDone && <div className="grip-handle" style={{ paddingTop: 5, cursor: "grab" }}><IC.grip /></div>}
-      <button onClick={() => onToggle(t.id)} style={{ width: 20, height: 20, minWidth: 20, marginTop: 1, border: `1.5px solid ${isDone ? "#8CB88C" : pc[t.priority]}`, borderRadius: 5, background: isDone ? "#8CB88C" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", padding: 0 }}>{isDone && <IC.check />}</button>
+      <button onClick={() => onToggle(t.id)} style={{ width: 24, height: 24, minWidth: 24, marginTop: 0, border: `1.5px solid ${isDone ? "#8CB88C" : pc[t.priority]}`, borderRadius: 6, background: isDone ? "#8CB88C" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", padding: 0 }}>{isDone && <IC.check />}</button>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 500, color: isDone ? T3 : T1, textDecoration: isDone ? "line-through" : "none", lineHeight: 1.45 }}>
           {t.in_priority && !isDone && <span style={{ fontSize: 11, fontWeight: 700, color: AC, marginRight: 7, fontVariantNumeric: "tabular-nums" }}>{String(i + 1).padStart(2, "0")}</span>}
@@ -591,7 +611,7 @@ function Card({ task: t, index: i, showProj, isDone, projName, onToggle, onEdit,
 }
 
 function Abtn({ children, onClick, t: title }) {
-  return <button className="action-btn" title={title} onClick={onClick} style={{ width: 28, height: 28, border: "none", borderRadius: 6, background: "transparent", color: T3, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }} onMouseEnter={e => { e.currentTarget.style.background = AL; e.currentTarget.style.color = AC; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T3; }}>{children}</button>;
+  return <button className="action-btn" title={title} onClick={onClick} style={{ width: 32, height: 32, border: "none", borderRadius: 8, background: "transparent", color: T3, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }} onMouseEnter={e => { e.currentTarget.style.background = AL; e.currentTarget.style.color = AC; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T3; }}>{children}</button>;
 }
 
 function Sec({ label, count, accent, muted, hint, style = {} }) {
@@ -601,7 +621,8 @@ function Sec({ label, count, accent, muted, hint, style = {} }) {
 function Empty({ text }) { return <div style={{ padding: 28, textAlign: "center", color: T3, fontSize: 13, fontWeight: 500, fontStyle: "italic" }}>{text}</div>; }
 
 function Modal({ children, onClose }) {
-  return <div style={{ position: "fixed", inset: 0, background: "rgba(26,23,21,.3)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={onClose}><div className="modal-content" onClick={e => e.stopPropagation()} style={{ background: W, border: `1px solid ${BD}`, borderRadius: 16, padding: 30, width: "100%", maxWidth: 420, maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(26,23,21,.12)" }}>{children}</div></div>;
+  const mob = window.innerWidth <= 640;
+  return <div style={{ position: "fixed", inset: 0, background: "rgba(26,23,21,.3)", backdropFilter: "blur(6px)", display: "flex", alignItems: mob ? "flex-end" : "center", justifyContent: "center", zIndex: 100 }} onClick={onClose}><div className="modal-content" onClick={e => e.stopPropagation()} style={{ background: W, border: `1px solid ${BD}`, borderRadius: mob ? "16px 16px 0 0" : 16, padding: mob ? "24px 20px 32px" : 30, width: "100%", maxWidth: mob ? "100%" : 420, maxHeight: mob ? "85vh" : "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(26,23,21,.12)" }}>{children}</div></div>;
 }
 
 function Lbl({ children }) { return <div style={{ fontSize: 11, fontWeight: 600, color: T3, marginBottom: 6, textTransform: "uppercase", letterSpacing: ".08em" }}>{children}</div>; }
