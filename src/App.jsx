@@ -71,11 +71,43 @@ const sb = {
   insertTask: (t) => sb.query("POST", "tasks", t),
   updateTask: (id, u) => sb.query("PATCH", `tasks?id=eq.${id}`, u),
   deleteTask: (id) => sb.query("DELETE", `tasks?id=eq.${id}`),
+  // Edge functions
+  async callFn(name, body) {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Function ${name}: ${res.status}`);
+    return res.json();
+  },
 };
 
 // ============================================================
 // Icons
 // ============================================================
+// Project icon set (choosable per project)
+const PROJECT_ICONS = {
+  folder: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12V4a1 1 0 011-1h3l2 2h5a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1z"/></svg>,
+  target: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/></svg>,
+  star: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinejoin="round"><polygon points="8,1.5 9.8,6 14.5,6.3 10.9,9.3 12,14 8,11.5 4,14 5.1,9.3 1.5,6.3 6.2,6"/></svg>,
+  book: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12.5V3a1 1 0 011-1h10v10H3.5a1.5 1.5 0 000 3H13"/><line x1="2" y1="12.5" x2="2" y2="13.5"/></svg>,
+  briefcase: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="5" width="13" height="8" rx="1.5"/><path d="M5.5 5V3.5a1 1 0 011-1h3a1 1 0 011 1V5"/></svg>,
+  music: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="4.5" cy="12" r="2"/><circle cx="12.5" cy="10" r="2"/><line x1="6.5" y1="12" x2="6.5" y2="3"/><line x1="14.5" y1="10" x2="14.5" y2="2"/><path d="M6.5 3l8-1"/></svg>,
+  broadcast: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round"><path d="M4.5 6.5a5 5 0 017 0"/><path d="M6 8.5a2.5 2.5 0 013.5 0"/><circle cx="8" cy="11" r="1" fill={c||"currentColor"} stroke="none"/></svg>,
+  pen: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L8.5 5.5"/><path d="M2 8l4-4 6 6-4 4z"/><path d="M10 12l3 1-1-3"/></svg>,
+  calendar: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><line x1="2" y1="6.5" x2="14" y2="6.5"/><line x1="5.5" y1="3" x2="5.5" y2="1.5"/><line x1="10.5" y1="3" x2="10.5" y2="1.5"/></svg>,
+  code: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="5,4 1.5,8 5,12"/><polyline points="11,4 14.5,8 11,12"/><line x1="9" y1="2" x2="7" y2="14"/></svg>,
+  heart: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinejoin="round"><path d="M8 13.5S1.5 9.5 1.5 5.5a3 3 0 016.5-1 3 3 0 016.5 1c0 4-6.5 8-6.5 8z"/></svg>,
+  home: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 7.5L8 2.5l5.5 5"/><path d="M4 7v5.5a1 1 0 001 1h6a1 1 0 001-1V7"/></svg>,
+  lightning: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="9,1 3,9 8,9 7,15 13,7 8,7"/></svg>,
+  users: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="5" r="2.5"/><path d="M1.5 14v-1.5a3 3 0 016 0V14"/><circle cx="11" cy="5.5" r="2"/><path d="M10.5 10.5a3 3 0 015 0V14"/></svg>,
+  camera: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5.5a1 1 0 011-1h2l1-1.5h4l1 1.5h2a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1z"/><circle cx="8" cy="8.5" r="2.5"/></svg>,
+  globe: (c) => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={c||"currentColor"} strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="3" ry="6"/><line x1="2" y1="8" x2="14" y2="8"/></svg>,
+};
+
+const ICON_KEYS = Object.keys(PROJECT_ICONS);
+
 const IC = {
   plus: () => <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>,
   check: () => <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="2,6 5,9.5 10,2.5"/></svg>,
@@ -90,9 +122,7 @@ const IC = {
   zap: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="9,1 3,9 8,9 7,15 13,7 8,7"/></svg>,
   sync: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8a5 5 0 019.5-1.5M13 8a5 5 0 01-9.5 1.5"/><polyline points="3,3 3,6.5 6.5,6.5"/><polyline points="13,13 13,9.5 9.5,9.5"/></svg>,
   logout: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3"/><polyline points="10,11 14,8 10,5"/><line x1="14" y1="8" x2="6" y2="8"/></svg>,
-  folder: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12V4a1 1 0 011-1h3l2 2h5a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1z"/></svg>,
   overview: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/></svg>,
-  settings: () => <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.75 3.75l1.1 1.1M11.15 11.15l1.1 1.1M3.75 12.25l1.1-1.1M11.15 4.85l1.1-1.1"/></svg>,
 };
 
 // Colors
@@ -271,14 +301,17 @@ function TaskApp({ user, onLogout }) {
   const [mins, setMins] = useState(60);
   const [projModal, setProjModal] = useState(false);
   const [newProjName, setNewProjName] = useState("");
+  const [newProjIcon, setNewProjIcon] = useState("folder");
   const [editingProj, setEditingProj] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [quickAdd, setQuickAdd] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     const check = () => {
       const m = window.innerWidth <= 768;
       setIsMobile(m);
-      if (!m && !sidebar) setSidebar(true);
+      if (!m) setSidebar(true);
     };
     check();
     window.addEventListener("resize", check);
@@ -305,8 +338,8 @@ function TaskApp({ user, onLogout }) {
   // Project management
   const addProject = async () => {
     if (!newProjName.trim()) return;
-    const p = { id: genId(), user_id: uid, name: newProjName.trim(), sort_order: projects.length, icon: "folder" };
-    setProjects(prev => [...prev, p]); setNewProjName(""); setSyncing(true);
+    const p = { id: genId(), user_id: uid, name: newProjName.trim(), sort_order: projects.length, icon: newProjIcon };
+    setProjects(prev => [...prev, p]); setNewProjName(""); setNewProjIcon("folder"); setSyncing(true);
     try { await sb.insertProject(p); } catch { load(); }
     setSyncing(false);
   };
@@ -329,21 +362,50 @@ function TaskApp({ user, onLogout }) {
 
   const renameProject = async () => {
     if (!editingProj || !editingProj.name.trim()) return;
-    setProjects(prev => prev.map(p => p.id === editingProj.id ? { ...p, name: editingProj.name } : p));
+    setProjects(prev => prev.map(p => p.id === editingProj.id ? { ...p, name: editingProj.name, icon: editingProj.icon } : p));
     setSyncing(true);
-    try { await sb.updateProject(editingProj.id, { name: editingProj.name }); } catch { load(); }
+    try { await sb.updateProject(editingProj.id, { name: editingProj.name, icon: editingProj.icon }); } catch { load(); }
     setSyncing(false); setEditingProj(null);
+  };
+
+  const moveProject = async (id, dir) => {
+    const idx = projects.findIndex(p => p.id === id);
+    if ((dir === -1 && idx === 0) || (dir === 1 && idx === projects.length - 1)) return;
+    const reordered = [...projects];
+    const [moved] = reordered.splice(idx, 1);
+    reordered.splice(idx + dir, 0, moved);
+    const updated = reordered.map((p, i) => ({ ...p, sort_order: i }));
+    setProjects(updated); setSyncing(true);
+    try { for (const p of updated) await sb.updateProject(p.id, { sort_order: p.sort_order }); } catch { load(); }
+    setSyncing(false);
   };
 
   // Task operations
   const addTask = async () => {
     if (!form.title.trim() || !form.project) return;
-    const t = { id: genId(), user_id: uid, title: form.title, notes: form.notes, project: form.project, priority: form.priority, in_priority: false, sort_order: tasks.filter(x => !x.in_priority && x.project === form.project).length, done: false, created_at: new Date().toISOString() };
-    setForm({ title: "", notes: "", project: tab === "overview" ? (projects[0]?.id || "") : tab, priority: "medium" });
+    const t = { id: genId(), user_id: uid, title: form.title, notes: form.notes, project: form.project, priority: form.priority, subtasks: form.subtasks || "[]", in_priority: false, sort_order: tasks.filter(x => !x.in_priority && x.project === form.project).length, done: false, created_at: new Date().toISOString() };
+    setForm({ title: "", notes: "", project: tab === "overview" ? (projects[0]?.id || "") : tab, priority: "medium", subtasks: "[]" });
     setAddOpen(false);
     setTasks(p => [...p, t]); setSyncing(true);
     try { await sb.insertTask(t); } catch { load(); }
     setSyncing(false);
+  };
+
+  const quickAddTask = async () => {
+    if (!quickAdd.trim() || tab === "overview" || !tab) return;
+    const t = { id: genId(), user_id: uid, title: quickAdd.trim(), notes: "", project: tab, priority: "medium", subtasks: "[]", in_priority: false, sort_order: tasks.filter(x => !x.in_priority && x.project === tab).length, done: false, created_at: new Date().toISOString() };
+    setQuickAdd("");
+    setTasks(p => [...p, t]); setSyncing(true);
+    try { await sb.insertTask(t); } catch { load(); }
+    setSyncing(false);
+  };
+
+  const toggleSubtask = async (taskId, subtaskIdx) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const subs = JSON.parse(task.subtasks || "[]");
+    subs[subtaskIdx] = { ...subs[subtaskIdx], done: !subs[subtaskIdx].done };
+    upd(taskId, { subtasks: JSON.stringify(subs) });
   };
 
   const upd = async (id, u) => {
@@ -358,7 +420,7 @@ function TaskApp({ user, onLogout }) {
     setSyncing(false);
   };
 
-  const save = () => { if (!editing) return; const { id, title, notes, project, priority } = editing; setEditing(null); upd(id, { title, notes, project, priority }); };
+  const save = () => { if (!editing) return; const { id, title, notes, project, priority, subtasks } = editing; setEditing(null); upd(id, { title, notes, project, priority, subtasks: subtasks || "[]" }); };
   const toggle = (id) => { const t = tasks.find(x => x.id === id); if (t) upd(id, { done: !t.done }); };
   const toPri = (id) => upd(id, { in_priority: true, sort_order: tasks.filter(t => t.in_priority && !t.done).length });
   const toBl = (id) => upd(id, { in_priority: false, sort_order: 999 });
@@ -389,12 +451,26 @@ function TaskApp({ user, onLogout }) {
     upd(dragId, { in_priority: inP, sort_order: mx }); setDragId(null); setOverId(null);
   };
 
-  // Focus time
-  const suggest = () => {
-    const act = tasks.filter(t => !t.done && t.in_priority).sort((a, b) => { const p = { high: 0, medium: 1, low: 2 }; return p[a.priority] !== p[b.priority] ? p[a.priority] - p[b.priority] : a.sort_order - b.sort_order; });
-    let rem = mins; const s = [];
-    for (const t of act) { if (rem <= 0) break; const est = t.priority === "high" ? 45 : t.priority === "medium" ? 30 : 15; s.push({ ...t, allocatedMins: Math.min(est, rem) }); rem -= est; }
-    setSuggested(s); setTimeOpen(false);
+  // Focus time (AI-powered)
+  const suggest = async () => {
+    const allActive = tasks.filter(t => !t.done).map(t => ({
+      title: t.title, notes: t.notes, project: projName(t.project), priority: t.priority,
+      in_priority: t.in_priority, subtasks: JSON.parse(t.subtasks || "[]").filter(s => !s.done).map(s => s.text),
+    }));
+    if (allActive.length === 0) { setSuggested([]); setTimeOpen(false); return; }
+    setAiLoading(true); setTimeOpen(false);
+    try {
+      const res = await sb.callFn("focus-time", { tasks: allActive, minutes: mins });
+      setSuggested(res.suggestions || []);
+    } catch (e) {
+      console.error("AI focus failed:", e);
+      // Fallback to simple priority-based suggestion
+      const act = tasks.filter(t => !t.done && t.in_priority).sort((a, b) => { const p = { high: 0, medium: 1, low: 2 }; return p[a.priority] !== p[b.priority] ? p[a.priority] - p[b.priority] : a.sort_order - b.sort_order; });
+      let rem = mins; const s = [];
+      for (const t of act) { if (rem <= 0) break; const est = t.priority === "high" ? 45 : t.priority === "medium" ? 30 : 15; s.push({ title: t.title, project: projName(t.project), estimatedMins: Math.min(est, rem), reason: "Priority task" }); rem -= est; }
+      setSuggested(s);
+    }
+    setAiLoading(false);
   };
 
   // Derived
@@ -454,8 +530,9 @@ function TaskApp({ user, onLogout }) {
           {projects.map((p, i) => {
             const c = tasks.filter(t => t.project === p.id && !t.done).length;
             const a = tab === p.id;
+            const PIcon = PROJECT_ICONS[p.icon] || PROJECT_ICONS.folder;
             return (<button key={p.id} className="sb" onClick={() => selectTab(p.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 12px", border: "none", borderRadius: 8, background: a ? AL : "transparent", color: a ? AC : T2, cursor: "pointer", fontSize: 13.5, fontWeight: a ? 600 : 500, textAlign: "left", marginBottom: 1, animation: `slideIn .2s ease ${i * .03}s both`, fontFamily: "'Satoshi', sans-serif" }}>
-              <span style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", background: a ? AC : "#F0ECE7" }}><IC.folder style={{ color: a ? "#fff" : T3 }} /></span>
+              <span style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", background: a ? AC : "#F0ECE7" }}>{PIcon(a ? "#fff" : T3)}</span>
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
               {c > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: a ? AC : T3 }}>{c}</span>}
             </button>);
@@ -480,12 +557,12 @@ function TaskApp({ user, onLogout }) {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <div style={{ padding: isMobile ? "14px 16px" : "18px 36px", borderBottom: `1px solid ${BD}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: W, gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <button onClick={() => setSidebar(!sidebar)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", padding: "6px", borderRadius: 6, display: "flex" }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.menu /></button>
+            {isMobile && <button onClick={() => setSidebar(!sidebar)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", padding: "6px", borderRadius: 6, display: "flex" }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.menu /></button>}
             <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 26, fontWeight: 400, fontFamily: "'Instrument Serif', serif", color: T1, letterSpacing: "-.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {tab === "overview" ? "Overview" : projName(tab)}
             </h1>
             {tab !== "overview" && (
-              <button onClick={() => { const p = projects.find(x => x.id === tab); if (p) setEditingProj({ ...p }); }} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 4 }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.settings /></button>
+              <button onClick={() => { const p = projects.find(x => x.id === tab); if (p) setEditingProj({ ...p }); }} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 4 }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.edit /></button>
             )}
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -495,18 +572,28 @@ function TaskApp({ user, onLogout }) {
         </div>
 
         {/* Focus suggestion */}
-        {suggested && (
+        {aiLoading && (
+          <div style={{ margin: isMobile ? "16px 16px 0" : "22px 36px 0", padding: isMobile ? "16px" : "20px 24px", background: AL, border: `1px solid ${AM}`, borderRadius: 14, animation: "fadeIn .3s ease both", textAlign: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: AC, fontWeight: 600, fontSize: 14 }}>
+              <span style={{ animation: "spin 1s linear infinite", display: "flex" }}><IC.sync /></span> Analyzing your tasks...
+            </div>
+          </div>
+        )}
+        {suggested && !aiLoading && (
           <div style={{ margin: isMobile ? "16px 16px 0" : "22px 36px 0", padding: isMobile ? "16px" : "20px 24px", background: AL, border: `1px solid ${AM}`, borderRadius: 14, animation: "fadeIn .3s ease both" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14, color: AC }}><IC.zap /> Focus session — {mins} min</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14, color: AC }}><IC.zap /> Focus plan — {mins} min</div>
               <button onClick={() => setSuggested(null)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex" }}><IC.x /></button>
             </div>
-            {suggested.length === 0 ? <div style={{ color: T2, fontSize: 13 }}>No priority tasks. Move some to your priority queue first.</div> : suggested.map((t, i) => (
-              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderBottom: i < suggested.length - 1 ? `1px solid ${AM}` : "none" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: AC, background: "#fff", padding: "3px 8px", borderRadius: 5, minWidth: 22, textAlign: "center" }}>{i + 1}</span>
-                <span style={{ flex: 1, fontSize: 13.5, fontWeight: 500, color: T1 }}>{t.title}</span>
-                <span style={{ fontSize: 12, color: T2, fontWeight: 500 }}>~{t.allocatedMins}m</span>
-                {tab === "overview" && <span style={{ fontSize: 10, fontWeight: 600, color: T3, background: "#fff", padding: "3px 8px", borderRadius: 5 }}>{projName(t.project)}</span>}
+            {suggested.length === 0 ? <div style={{ color: T2, fontSize: 13 }}>No tasks to suggest. Add some tasks first.</div> : suggested.map((t, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 0", borderBottom: i < suggested.length - 1 ? `1px solid ${AM}` : "none" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: AC, background: "#fff", padding: "3px 8px", borderRadius: 5, minWidth: 22, textAlign: "center", flexShrink: 0, marginTop: 2 }}>{i + 1}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, color: T1 }}>{t.title}</div>
+                  {t.reason && <div style={{ fontSize: 12, color: T2, marginTop: 2 }}>{t.reason}</div>}
+                </div>
+                <span style={{ fontSize: 12, color: T2, fontWeight: 600, flexShrink: 0 }}>~{t.estimatedMins}m</span>
+                {t.project && <span style={{ fontSize: 10, fontWeight: 600, color: T3, background: "#fff", padding: "3px 8px", borderRadius: 5, flexShrink: 0 }}>{t.project}</span>}
               </div>
             ))}
           </div>
@@ -520,8 +607,9 @@ function TaskApp({ user, onLogout }) {
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fill,minmax(170px,1fr))", gap: 12, marginBottom: 36 }}>
                   {projects.map((p, i) => {
                     const pt = tasks.filter(t => t.project === p.id && !t.done), hc = pt.filter(t => t.priority === "high").length;
+                    const PIcon = PROJECT_ICONS[p.icon] || PROJECT_ICONS.folder;
                     return (<button key={p.id} onClick={() => selectTab(p.id)} style={{ padding: "18px 16px", background: W, border: `1px solid ${BD}`, borderRadius: 12, cursor: "pointer", textAlign: "left", transition: "all .2s", animation: `fadeIn .3s ease ${i * .05}s both`, fontFamily: "'Satoshi', sans-serif" }} onMouseEnter={e => { e.currentTarget.style.borderColor = AM; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(212,96,10,.08)"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = BD; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#F0ECE7", marginBottom: 10, color: T2 }}><IC.folder /></div>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#F0ECE7", marginBottom: 10, color: T2 }}>{PIcon(T2)}</div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: T1, marginBottom: 3 }}>{p.name}</div>
                       <div style={{ fontSize: 12, color: T3, fontWeight: 500 }}>{pt.length} task{pt.length !== 1 ? "s" : ""}{hc > 0 && <span style={{ color: AC }}> / {hc} urgent</span>}</div>
                     </button>);
@@ -530,20 +618,25 @@ function TaskApp({ user, onLogout }) {
               )}
               {projects.length === 0 && <div style={{ padding: "60px 20px", textAlign: "center" }}><div style={{ color: T2, fontSize: 15, fontWeight: 500, marginBottom: 8 }}>No projects yet</div><div style={{ color: T3, fontSize: 13, marginBottom: 20 }}>Create your first project to start adding tasks.</div><button onClick={() => setProjModal(true)} style={{ ...primBtn, width: "auto", display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 20px" }}><IC.plus /> Add project</button></div>}
               {tasks.length > 0 && <>
-                <Sec label="Priority queue" count={pri.length} accent />{pri.length === 0 ? <Empty text="No priority tasks" /> : pri.map((t, i) => <Card key={t.id} task={t} index={i} showProj projName={projName} onToggle={toggle} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "priority")} />)}
-                <Sec label="Backlog" count={bl.length} style={{ marginTop: 36 }} />{bl.length === 0 ? <Empty text="Backlog is empty" /> : bl.map((t, i) => <Card key={t.id} task={t} index={i} showProj projName={projName} onToggle={toggle} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "backlog")} />)}
+                <Sec label="Priority queue" count={pri.length} accent />{pri.length === 0 ? <Empty text="No priority tasks" /> : pri.map((t, i) => <Card key={t.id} task={t} index={i} showProj projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "priority")} />)}
+                <Sec label="Backlog" count={bl.length} style={{ marginTop: 36 }} />{bl.length === 0 ? <Empty text="Backlog is empty" /> : bl.map((t, i) => <Card key={t.id} task={t} index={i} showProj projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "backlog")} />)}
               </>}
             </div>
           ) : (
             <div>
+              {/* Quick add */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+                <input value={quickAdd} onChange={e => setQuickAdd(e.target.value)} onKeyDown={e => e.key === "Enter" && quickAddTask()} style={{ ...inp, marginBottom: 0, flex: 1, background: W, padding: "11px 14px" }} placeholder="Quick add task..." />
+                <button onClick={quickAddTask} disabled={!quickAdd.trim()} style={{ padding: "10px 14px", border: "none", borderRadius: 9, background: quickAdd.trim() ? T1 : BD, color: W, cursor: quickAdd.trim() ? "pointer" : "default", fontSize: 13, fontWeight: 600, fontFamily: "'Satoshi',sans-serif", display: "flex", alignItems: "center", gap: 6, transition: "all .15s", flexShrink: 0 }}><IC.plus /></button>
+              </div>
               <div onDragOver={e => e.preventDefault()} onDrop={e => onDropSec(e, "priority")}>
                 <Sec label="Priority queue" count={pri.length} accent hint="Drag to reorder" />
-                {pri.length === 0 ? <div style={{ padding: 36, textAlign: "center", border: `1.5px dashed ${BD}`, borderRadius: 12, color: T3, fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Drag tasks here or use the arrow to prioritize</div> : pri.map((t, i) => <Card key={t.id} task={t} index={i} projName={projName} onToggle={toggle} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "priority")} />)}
+                {pri.length === 0 ? <div style={{ padding: 36, textAlign: "center", border: `1.5px dashed ${BD}`, borderRadius: 12, color: T3, fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Drag tasks here or use the arrow to prioritize</div> : pri.map((t, i) => <Card key={t.id} task={t} index={i} projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "priority")} />)}
               </div>
               <div style={{ marginTop: 36 }} onDragOver={e => e.preventDefault()} onDrop={e => onDropSec(e, "backlog")}>
-                <Sec label="Backlog" count={bl.length} />{bl.length === 0 ? <Empty text="No backlog tasks" /> : bl.map((t, i) => <Card key={t.id} task={t} index={i} projName={projName} onToggle={toggle} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "backlog")} />)}
+                <Sec label="Backlog" count={bl.length} />{bl.length === 0 ? <Empty text="No backlog tasks" /> : bl.map((t, i) => <Card key={t.id} task={t} index={i} projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "backlog")} />)}
               </div>
-              {done.length > 0 && <div style={{ marginTop: 36 }}><Sec label="Completed" count={done.length} muted />{done.map((t, i) => <Card key={t.id} task={t} index={i} isDone projName={projName} onToggle={toggle} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={() => {}} />)}</div>}
+              {done.length > 0 && <div style={{ marginTop: 36 }}><Sec label="Completed" count={done.length} muted />{done.map((t, i) => <Card key={t.id} task={t} index={i} isDone projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={() => {}} />)}</div>}
             </div>
           )}
         </div>
@@ -553,28 +646,62 @@ function TaskApp({ user, onLogout }) {
       {addOpen && <Modal onClose={() => setAddOpen(false)}><div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>New task</div><Lbl>Title</Lbl><input autoFocus value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} onKeyDown={e => e.key === "Enter" && add()} style={inp} placeholder="What needs to be done?" /><Lbl>Project</Lbl><select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={inp}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select><Lbl>Priority</Lbl><div style={{ display: "flex", gap: 8, marginBottom: 20 }}>{["high", "medium", "low"].map(p => <button key={p} onClick={() => setForm({ ...form, priority: p })} style={pbtn(form.priority === p, p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div><Lbl>Notes</Lbl><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Additional details..." /><button onClick={addTask} style={primBtn}>Add task</button></Modal>}
 
       {/* Edit task modal */}
-      {editing && <Modal onClose={() => setEditing(null)}><div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>Edit task</div><Lbl>Title</Lbl><input value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} style={inp} /><Lbl>Project</Lbl><select value={editing.project} onChange={e => setEditing({ ...editing, project: e.target.value })} style={inp}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select><Lbl>Priority</Lbl><div style={{ display: "flex", gap: 8, marginBottom: 20 }}>{["high", "medium", "low"].map(p => <button key={p} onClick={() => setEditing({ ...editing, priority: p })} style={pbtn(editing.priority === p, p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div><Lbl>Notes</Lbl><textarea value={editing.notes} onChange={e => setEditing({ ...editing, notes: e.target.value })} style={{ ...inp, minHeight: 80, resize: "vertical" }} /><div style={{ display: "flex", gap: 8 }}><button onClick={save} style={{ ...primBtn, flex: 1 }}>Save</button><button onClick={() => { del(editing.id); setEditing(null); }} style={{ padding: "11px 18px", border: "1.5px solid #F0D5D0", borderRadius: 10, background: "#FFF5F3", color: "#C0392B", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, fontFamily: "'Satoshi',sans-serif" }}><IC.trash /> Delete</button></div></Modal>}
+      {editing && <Modal onClose={() => setEditing(null)}>
+        <div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>Edit task</div>
+        <Lbl>Title</Lbl><input value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} style={inp} />
+        <Lbl>Project</Lbl><select value={editing.project} onChange={e => setEditing({ ...editing, project: e.target.value })} style={inp}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+        <Lbl>Priority</Lbl><div style={{ display: "flex", gap: 8, marginBottom: 20 }}>{["high", "medium", "low"].map(p => <button key={p} onClick={() => setEditing({ ...editing, priority: p })} style={pbtn(editing.priority === p, p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div>
+        <Lbl>Notes</Lbl><textarea value={editing.notes} onChange={e => setEditing({ ...editing, notes: e.target.value })} style={{ ...inp, minHeight: 60, resize: "vertical" }} />
+        <Lbl>Subtasks</Lbl>
+        <SubtaskEditor subtasks={JSON.parse(editing.subtasks || "[]")} onChange={subs => setEditing({ ...editing, subtasks: JSON.stringify(subs) })} />
+        <div style={{ display: "flex", gap: 8, marginTop: 20 }}><button onClick={save} style={{ ...primBtn, flex: 1 }}>Save</button><button onClick={() => { del(editing.id); setEditing(null); }} style={{ padding: "11px 18px", border: "1.5px solid #F0D5D0", borderRadius: 10, background: "#FFF5F3", color: "#C0392B", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, fontFamily: "'Satoshi',sans-serif" }}><IC.trash /> Delete</button></div>
+      </Modal>}
 
       {/* Project management modal */}
       {projModal && <Modal onClose={() => setProjModal(false)}><div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>Manage projects</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          <input value={newProjName} onChange={e => setNewProjName(e.target.value)} onKeyDown={e => e.key === "Enter" && addProject()} style={{ ...inp, marginBottom: 0, flex: 1 }} placeholder="New project name..." autoFocus />
+        <Lbl>New project</Lbl>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <input value={newProjName} onChange={e => setNewProjName(e.target.value)} onKeyDown={e => e.key === "Enter" && addProject()} style={{ ...inp, marginBottom: 0, flex: 1 }} placeholder="Project name..." autoFocus />
           <button onClick={addProject} style={{ padding: "10px 16px", border: "none", borderRadius: 9, background: T1, color: W, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "'Satoshi',sans-serif", whiteSpace: "nowrap" }}>Add</button>
         </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 20 }}>
+          {ICON_KEYS.map(k => (
+            <button key={k} onClick={() => setNewProjIcon(k)} style={{ width: 36, height: 36, border: newProjIcon === k ? `2px solid ${AC}` : `1.5px solid ${BD}`, borderRadius: 8, background: newProjIcon === k ? AL : W, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+              {PROJECT_ICONS[k](newProjIcon === k ? AC : T3)}
+            </button>
+          ))}
+        </div>
+        {projects.length > 0 && <Lbl>Your projects</Lbl>}
         {projects.length === 0 && <div style={{ color: T3, fontSize: 13, textAlign: "center", padding: "16px 0", fontStyle: "italic" }}>No projects yet</div>}
-        {projects.map(p => (
-          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${BD}` }}>
-            <span style={{ color: T2, display: "flex" }}><IC.folder /></span>
-            <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: T1 }}>{p.name}</span>
-            <span style={{ fontSize: 11, color: T3 }}>{tasks.filter(t => t.project === p.id && !t.done).length} tasks</span>
-            <button onClick={() => setEditingProj({ ...p })} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 4 }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.edit /></button>
-            <button onClick={() => removeProject(p.id)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 4 }} onMouseEnter={e => e.currentTarget.style.color = "#C0392B"} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.trash /></button>
-          </div>
-        ))}
+        {projects.map((p, i) => {
+          const PIcon = PROJECT_ICONS[p.icon] || PROJECT_ICONS.folder;
+          return (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", borderBottom: `1px solid ${BD}` }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <button onClick={() => moveProject(p.id, -1)} disabled={i === 0} style={{ background: "none", border: "none", color: i === 0 ? BD : T3, cursor: i === 0 ? "default" : "pointer", display: "flex", padding: 1 }}><IC.up /></button>
+                <button onClick={() => moveProject(p.id, 1)} disabled={i === projects.length - 1} style={{ background: "none", border: "none", color: i === projects.length - 1 ? BD : T3, cursor: i === projects.length - 1 ? "default" : "pointer", display: "flex", padding: 1 }}><IC.down /></button>
+              </div>
+              <span style={{ color: T2, display: "flex" }}>{PIcon(T2)}</span>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: T1 }}>{p.name}</span>
+              <span style={{ fontSize: 11, color: T3 }}>{tasks.filter(t => t.project === p.id && !t.done).length}</span>
+              <button onClick={() => setEditingProj({ ...p })} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 4 }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.edit /></button>
+              <button onClick={() => removeProject(p.id)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 4 }} onMouseEnter={e => e.currentTarget.style.color = "#C0392B"} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.trash /></button>
+            </div>
+          );
+        })}
       </Modal>}
 
       {/* Edit project modal */}
-      {editingProj && <Modal onClose={() => setEditingProj(null)}><div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>Rename project</div><Lbl>Name</Lbl><input value={editingProj.name} onChange={e => setEditingProj({ ...editingProj, name: e.target.value })} onKeyDown={e => e.key === "Enter" && renameProject()} style={inp} autoFocus /><div style={{ display: "flex", gap: 8 }}><button onClick={renameProject} style={{ ...primBtn, flex: 1 }}>Save</button><button onClick={() => { removeProject(editingProj.id); setEditingProj(null); }} style={{ padding: "11px 18px", border: "1.5px solid #F0D5D0", borderRadius: 10, background: "#FFF5F3", color: "#C0392B", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, fontFamily: "'Satoshi',sans-serif" }}><IC.trash /> Delete project</button></div></Modal>}
+      {editingProj && <Modal onClose={() => setEditingProj(null)}><div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>Edit project</div><Lbl>Name</Lbl><input value={editingProj.name} onChange={e => setEditingProj({ ...editingProj, name: e.target.value })} onKeyDown={e => e.key === "Enter" && renameProject()} style={inp} autoFocus />
+        <Lbl>Icon</Lbl>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 20 }}>
+          {ICON_KEYS.map(k => (
+            <button key={k} onClick={() => setEditingProj({ ...editingProj, icon: k })} style={{ width: 36, height: 36, border: editingProj.icon === k ? `2px solid ${AC}` : `1.5px solid ${BD}`, borderRadius: 8, background: editingProj.icon === k ? AL : W, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+              {PROJECT_ICONS[k](editingProj.icon === k ? AC : T3)}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}><button onClick={renameProject} style={{ ...primBtn, flex: 1 }}>Save</button><button onClick={() => { removeProject(editingProj.id); setEditingProj(null); }} style={{ padding: "11px 18px", border: "1.5px solid #F0D5D0", borderRadius: 10, background: "#FFF5F3", color: "#C0392B", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, fontFamily: "'Satoshi',sans-serif" }}><IC.trash /> Delete project</button></div></Modal>}
 
       {/* Focus time modal */}
       {timeOpen && <Modal onClose={() => setTimeOpen(false)}><div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 4 }}>Focus time</div><div style={{ fontSize: 13, color: T2, marginBottom: 22, fontWeight: 500 }}>How long can you work? I'll pick your top tasks.</div><div style={{ display: "flex", gap: 8, marginBottom: 18 }}>{[15, 30, 60, 120].map(m => <button key={m} onClick={() => setMins(m)} style={{ flex: 1, padding: "11px 8px", border: mins === m ? `2px solid ${AC}` : `1.5px solid ${BD}`, borderRadius: 10, background: mins === m ? AL : W, color: mins === m ? AC : T2, cursor: "pointer", fontSize: 13.5, fontWeight: 600, fontFamily: "'Satoshi',sans-serif" }}>{m < 60 ? `${m}m` : `${m / 60}h`}</button>)}</div><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 22 }}><span style={{ fontSize: 13, color: T3, fontWeight: 500 }}>Custom:</span><input type="number" value={mins} onChange={e => setMins(Math.max(5, parseInt(e.target.value) || 0))} style={{ ...inp, width: 72, marginBottom: 0, textAlign: "center" }} /><span style={{ fontSize: 13, color: T3, fontWeight: 500 }}>minutes</span></div><button onClick={suggest} style={primBtn}><span style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}><IC.zap /> Show me what to work on</span></button></Modal>}
@@ -585,8 +712,34 @@ function TaskApp({ user, onLogout }) {
 // ============================================================
 // Shared components
 // ============================================================
-function Card({ task: t, index: i, showProj, isDone, projName, onToggle, onEdit, onDel, toBl, toPri, dragId, overId, onDS, onDO, onDr }) {
+function SubtaskEditor({ subtasks, onChange }) {
+  const [text, setText] = useState("");
+  const add = () => { if (!text.trim()) return; onChange([...subtasks, { text: text.trim(), done: false }]); setText(""); };
+  const remove = (i) => onChange(subtasks.filter((_, idx) => idx !== i));
+  return (
+    <div>
+      {subtasks.map((s, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
+          <div style={{ width: 14, height: 14, minWidth: 14, border: `1.5px solid ${s.done ? "#8CB88C" : BD}`, borderRadius: 3, background: s.done ? "#8CB88C" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }} onClick={() => { const u = [...subtasks]; u[i] = { ...u[i], done: !u[i].done }; onChange(u); }}>
+            {s.done && <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2,6 5,9.5 10,2.5"/></svg>}
+          </div>
+          <span style={{ flex: 1, fontSize: 13, color: s.done ? T3 : T1, textDecoration: s.done ? "line-through" : "none" }}>{s.text}</span>
+          <button onClick={() => remove(i)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 2 }}><IC.x /></button>
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} style={{ ...inp, marginBottom: 0, flex: 1, padding: "8px 12px" }} placeholder="Add subtask..." />
+        <button onClick={add} disabled={!text.trim()} style={{ padding: "8px 12px", border: "none", borderRadius: 7, background: text.trim() ? T1 : BD, color: W, cursor: text.trim() ? "pointer" : "default", fontSize: 12, fontWeight: 600, fontFamily: "'Satoshi',sans-serif" }}>Add</button>
+      </div>
+    </div>
+  );
+}
+function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggle, onEdit, onDel, toBl, toPri, onSubToggle, dragId, overId, onDS, onDO, onDr }) {
   const pc = { high: AC, medium: "#C8922A", low: T3 }, pb = { high: "#FFF3EC", medium: "#FFF8EC", low: "#F5F3F0" };
+  const proj = projects && projects.find(p => p.id === t.project);
+  const PIcon = proj && PROJECT_ICONS[proj.icon] ? PROJECT_ICONS[proj.icon] : PROJECT_ICONS.folder;
+  const subs = JSON.parse(t.subtasks || "[]");
+  const subsDone = subs.filter(s => s.done).length;
   return (
     <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: overId === t.id ? AL : dragId === t.id ? "#F5F2EE" : W, border: `1px solid ${overId === t.id ? AM : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .4 : 1, transition: "all .15s", animationDelay: `${i * .03}s` }}>
       {!isDone && <div className="grip-handle" style={{ paddingTop: 5, cursor: "grab" }}><IC.grip /></div>}
@@ -597,9 +750,22 @@ function Card({ task: t, index: i, showProj, isDone, projName, onToggle, onEdit,
           {t.title}
         </div>
         {t.notes && <div style={{ fontSize: 12, color: T3, marginTop: 3, lineHeight: 1.4 }}>{t.notes}</div>}
+        {subs.length > 0 && !isDone && (
+          <div style={{ marginTop: 6 }}>
+            {subs.map((s, si) => (
+              <div key={si} onClick={(e) => { e.stopPropagation(); onSubToggle && onSubToggle(t.id, si); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0", cursor: "pointer" }}>
+                <div style={{ width: 14, height: 14, minWidth: 14, border: `1.5px solid ${s.done ? "#8CB88C" : BD}`, borderRadius: 3, background: s.done ? "#8CB88C" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {s.done && <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2,6 5,9.5 10,2.5"/></svg>}
+                </div>
+                <span style={{ fontSize: 12, color: s.done ? T3 : T2, textDecoration: s.done ? "line-through" : "none" }}>{s.text}</span>
+              </div>
+            ))}
+            <div style={{ fontSize: 10.5, color: T3, marginTop: 3, fontWeight: 500 }}>{subsDone}/{subs.length} done</div>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
           <span style={{ fontSize: 10.5, fontWeight: 600, color: pc[t.priority], background: pb[t.priority], padding: "2px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: ".06em" }}>{t.priority}</span>
-          {showProj && <span style={{ fontSize: 10.5, fontWeight: 600, color: T3, background: "#F5F3F0", padding: "2px 8px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><span style={{ display: "flex" }}><IC.folder /></span> {projName(t.project)}</span>}
+          {showProj && <span style={{ fontSize: 10.5, fontWeight: 600, color: T3, background: "#F5F3F0", padding: "2px 8px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><span style={{ display: "flex" }}>{PIcon(T3)}</span> {projName(t.project)}</span>}
         </div>
       </div>
       {!isDone && <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
