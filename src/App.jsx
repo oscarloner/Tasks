@@ -73,17 +73,15 @@ const sb = {
   deleteTask: (id) => sb.query("DELETE", `tasks?id=eq.${id}`),
   // Edge functions
 async callFn(name, body) {
+    const LEGACY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0c2JrZ3BrY2h6bGFqYWVraWF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNTg2NzUsImV4cCI6MjA4NjczNDY3NX0.BEgX5nx-np8EQKP73QVXFf8D25rT10HWFDxj4LQuYSY";
     const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
       method: "POST",
-      headers: { 
-        apikey: SUPABASE_ANON_KEY, 
-        Authorization: `Bearer ${accessToken}`, 
-        "Content-Type": "application/json" 
-      },
+      headers: { apikey: LEGACY_KEY, Authorization: `Bearer ${LEGACY_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Function ${name}: ${res.status}`);
     return res.json();
+  },
   },
 };
 
