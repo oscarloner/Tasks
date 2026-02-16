@@ -49,6 +49,14 @@ const sb = {
     if (!res.ok) return null;
     return res.json();
   },
+  async refresh(refreshToken) {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST", headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  },
   async signOut(token) {
     await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
       method: "POST", headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
@@ -109,13 +117,13 @@ function AuthScreen({ onAuth }) {
       if (mode === "signup") {
         const res = await sb.signUp(email, password);
         if (res.error) throw new Error(res.error.message || res.msg || "Signup failed");
-        if (res.access_token) { onAuth(res.access_token, res.user); }
+        if (res.access_token) { onAuth(res.access_token, res.refresh_token, res.user); }
         else { setSignupDone(true); }
       } else {
         const res = await sb.signIn(email, password);
         if (res.error) throw new Error(res.error.message || res.msg || "Login failed");
         if (!res.access_token) throw new Error("No token returned");
-        onAuth(res.access_token, res.user);
+        onAuth(res.access_token, res.refresh_token, res.user);
       }
     } catch (err) { setError(err.message); }
     setLoading(false);
@@ -170,21 +178,55 @@ export default function App() {
   const [token, setToken] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
+  const tryRefresh = async () => {
+    const rt = localStorage.getItem("sb_refresh");
+    if (!rt) return false;
+    try {
+      const res = await sb.refresh(rt);
+      if (res && res.access_token) {
+        accessToken = res.access_token;
+        localStorage.setItem("sb_token", res.access_token);
+        localStorage.setItem("sb_refresh", res.refresh_token);
+        setToken(res.access_token); setUser(res.user);
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem("sb_token");
     if (saved) {
       accessToken = saved;
-      sb.getUser(saved).then(u => {
-        if (u && u.id) { setUser(u); setToken(saved); }
-        else { localStorage.removeItem("sb_token"); }
+      sb.getUser(saved).then(async u => {
+        if (u && u.id) { setUser(u); setToken(saved); setCheckingAuth(false); }
+        else {
+          // Token expired — try refresh
+          const ok = await tryRefresh();
+          if (!ok) { localStorage.removeItem("sb_token"); localStorage.removeItem("sb_refresh"); }
+          setCheckingAuth(false);
+        }
+      }).catch(async () => {
+        const ok = await tryRefresh();
+        if (!ok) { localStorage.removeItem("sb_token"); localStorage.removeItem("sb_refresh"); }
         setCheckingAuth(false);
-      }).catch(() => { localStorage.removeItem("sb_token"); setCheckingAuth(false); });
+      });
     } else { setCheckingAuth(false); }
   }, []);
 
-  const handleAuth = (tok, usr) => {
+  // Auto-refresh token every 50 minutes to keep session alive
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(async () => {
+      await tryRefresh();
+    }, 50 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  const handleAuth = (tok, refreshTok, usr) => {
     accessToken = tok;
     localStorage.setItem("sb_token", tok);
+    if (refreshTok) localStorage.setItem("sb_refresh", refreshTok);
     setToken(tok); setUser(usr);
   };
 
@@ -192,6 +234,7 @@ export default function App() {
     if (token) await sb.signOut(token).catch(() => {});
     accessToken = null;
     localStorage.removeItem("sb_token");
+    localStorage.removeItem("sb_refresh");
     setToken(null); setUser(null);
   };
 
