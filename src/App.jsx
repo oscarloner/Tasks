@@ -81,9 +81,8 @@ async callFn(name, body) {
     });
     if (!res.ok) throw new Error(`Function ${name}: ${res.status}`);
     return res.json();
-  },
-  },
-};
+    },
+  };
 
 // ============================================================
 // Icons
