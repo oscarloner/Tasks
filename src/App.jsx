@@ -72,10 +72,14 @@ const sb = {
   updateTask: (id, u) => sb.query("PATCH", `tasks?id=eq.${id}`, u),
   deleteTask: (id) => sb.query("DELETE", `tasks?id=eq.${id}`),
   // Edge functions
-  async callFn(name, body) {
+async callFn(name, body) {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
       method: "POST",
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+      headers: { 
+        apikey: SUPABASE_ANON_KEY, 
+        Authorization: `Bearer ${accessToken}`, 
+        "Content-Type": "application/json" 
+      },
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Function ${name}: ${res.status}`);
