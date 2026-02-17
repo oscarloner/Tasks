@@ -124,6 +124,8 @@ const IC = {
   logout: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3"/><polyline points="10,11 14,8 10,5"/><line x1="14" y1="8" x2="6" y2="8"/></svg>,
   overview: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/></svg>,
   download: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v8"/><polyline points="4,7 8,11 12,7"/><path d="M2 13h12"/></svg>,
+  play: () => <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" stroke="none"><polygon points="4,2 14,8 4,14"/></svg>,
+  stop: () => <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" stroke="none"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>,
 };
 
 // Colors
@@ -307,6 +309,8 @@ function TaskApp({ user, onLogout }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [quickAdd, setQuickAdd] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [activeTimer, setActiveTimer] = useState(null); // { taskId, startedAt }
+  const [timerTick, setTimerTick] = useState(0);
 
   useEffect(() => {
     const check = () => {
@@ -323,6 +327,13 @@ function TaskApp({ user, onLogout }) {
     setTab(id);
     if (isMobile) setSidebar(false);
   };
+
+  // Timer tick
+  useEffect(() => {
+    if (!activeTimer) return;
+    const interval = setInterval(() => setTimerTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, [activeTimer]);
 
   const uid = user.id;
 
@@ -409,6 +420,33 @@ function TaskApp({ user, onLogout }) {
     upd(taskId, { subtasks: JSON.stringify(subs) });
   };
 
+  const startTimer = (taskId) => {
+    if (activeTimer && activeTimer.taskId !== taskId) stopTimer();
+    setActiveTimer({ taskId, startedAt: Date.now() });
+    setTimerTick(0);
+  };
+
+  const stopTimer = () => {
+    if (!activeTimer) return;
+    const elapsed = Math.round((Date.now() - activeTimer.startedAt) / 60000); // minutes
+    if (elapsed > 0) {
+      const task = tasks.find(t => t.id === activeTimer.taskId);
+      if (task) {
+        const prev = parseInt(task.time_spent) || 0;
+        upd(activeTimer.taskId, { time_spent: prev + elapsed });
+      }
+    }
+    setActiveTimer(null);
+    setTimerTick(0);
+  };
+
+  const formatTimer = (startedAt) => {
+    const secs = Math.floor((Date.now() - startedAt) / 1000);
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
+
   const upd = async (id, u) => {
     setTasks(p => p.map(t => t.id === id ? { ...t, ...u } : t)); setSyncing(true);
     try { await sb.updateTask(id, u); } catch { load(); }
@@ -422,7 +460,7 @@ function TaskApp({ user, onLogout }) {
   };
 
   const save = () => { if (!editing) return; const { id, title, notes, project, priority, subtasks } = editing; setEditing(null); upd(id, { title, notes, project, priority, subtasks: subtasks || "[]" }); };
-  const toggle = (id) => { const t = tasks.find(x => x.id === id); if (t) upd(id, { done: !t.done }); };
+  const toggle = (id) => { const t = tasks.find(x => x.id === id); if (t) { if (activeTimer && activeTimer.taskId === id) stopTimer(); upd(id, { done: !t.done }); } };
   const toPri = (id) => upd(id, { in_priority: true, sort_order: tasks.filter(t => t.in_priority && !t.done).length });
   const toBl = (id) => upd(id, { in_priority: false, sort_order: 999 });
 
@@ -457,11 +495,16 @@ function TaskApp({ user, onLogout }) {
     const allActive = tasks.filter(t => !t.done).map(t => ({
       title: t.title, notes: t.notes, project: projName(t.project), priority: t.priority,
       in_priority: t.in_priority, subtasks: JSON.parse(t.subtasks || "[]").filter(s => !s.done).map(s => s.text),
+      time_spent_so_far: parseInt(t.time_spent) || 0,
+    }));
+    // Include completed tasks with time data for learning
+    const completed = tasks.filter(t => t.done && parseInt(t.time_spent) > 0).map(t => ({
+      title: t.title, project: projName(t.project), priority: t.priority, time_spent: parseInt(t.time_spent),
     }));
     if (allActive.length === 0) { setSuggested([]); setTimeOpen(false); return; }
     setAiLoading(true); setTimeOpen(false);
     try {
-      const res = await sb.callFn("focus-time", { tasks: allActive, minutes: mins });
+      const res = await sb.callFn("focus-time", { tasks: allActive, minutes: mins, completed_history: completed });
       setSuggested(res.suggestions || []);
     } catch (e) {
       console.error("AI focus failed:", e);
@@ -486,6 +529,7 @@ function TaskApp({ user, onLogout }) {
         priority: t.priority,
         status: t.done ? "completed" : t.in_priority ? "priority" : "backlog",
         subtasks: JSON.parse(t.subtasks || "[]"),
+        time_spent_minutes: parseInt(t.time_spent) || 0,
         created: t.created_at,
       })),
       summary: {
@@ -529,7 +573,7 @@ function TaskApp({ user, onLogout }) {
       {sidebar && isMobile && <div className="sidebar-overlay" onClick={() => setSidebar(false)} />}
 
       {/* Sidebar */}
-      <div style={{ width: sidebar ? 256 : 0, minWidth: sidebar ? 256 : 0, background: W, borderRight: `1px solid ${BD}`, transition: "all .3s cubic-bezier(.4,0,.2,1)", overflow: "hidden", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, height: "100vh", zIndex: 50, boxShadow: sidebar && isMobile ? "4px 0 24px rgba(26,23,21,.1)" : "none" }}>
+      <div style={{ width: sidebar ? 256 : 0, minWidth: sidebar ? 256 : 0, background: W, borderRight: `1px solid ${BD}`, transition: "all .3s cubic-bezier(.4,0,.2,1)", overflow: "hidden", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, height: "100dvh", zIndex: 50, boxShadow: sidebar && isMobile ? "4px 0 24px rgba(26,23,21,.1)" : "none" }}>
         <div style={{ padding: "28px 22px 20px", borderBottom: `1px solid ${BD}` }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 22, color: T1 }}>Tasks</div>
@@ -649,8 +693,8 @@ function TaskApp({ user, onLogout }) {
               )}
               {projects.length === 0 && <div style={{ padding: "60px 20px", textAlign: "center" }}><div style={{ color: T2, fontSize: 15, fontWeight: 500, marginBottom: 8 }}>No projects yet</div><div style={{ color: T3, fontSize: 13, marginBottom: 20 }}>Create your first project to start adding tasks.</div><button onClick={() => setProjModal(true)} style={{ ...primBtn, width: "auto", display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 20px" }}><IC.plus /> Add project</button></div>}
               {tasks.length > 0 && <>
-                <Sec label="Priority queue" count={pri.length} accent />{pri.length === 0 ? <Empty text="No priority tasks" /> : pri.map((t, i) => <Card key={t.id} task={t} index={i} showProj projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "priority")} />)}
-                <Sec label="Backlog" count={bl.length} style={{ marginTop: 36 }} />{bl.length === 0 ? <Empty text="Backlog is empty" /> : bl.map((t, i) => <Card key={t.id} task={t} index={i} showProj projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "backlog")} />)}
+                <Sec label="Priority queue" count={pri.length} accent />{pri.length === 0 ? <Empty text="No priority tasks" /> : pri.map((t, i) => <Card key={t.id} task={t} index={i} showProj projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onTimerStart={startTimer} onTimerStop={stopTimer} activeTimer={activeTimer} formatTimer={formatTimer} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "priority")} />)}
+                <Sec label="Backlog" count={bl.length} style={{ marginTop: 36 }} />{bl.length === 0 ? <Empty text="Backlog is empty" /> : bl.map((t, i) => <Card key={t.id} task={t} index={i} showProj projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onTimerStart={startTimer} onTimerStop={stopTimer} activeTimer={activeTimer} formatTimer={formatTimer} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "backlog")} />)}
               </>}
             </div>
           ) : (
@@ -662,12 +706,12 @@ function TaskApp({ user, onLogout }) {
               </div>
               <div onDragOver={e => e.preventDefault()} onDrop={e => onDropSec(e, "priority")}>
                 <Sec label="Priority queue" count={pri.length} accent hint="Drag to reorder" />
-                {pri.length === 0 ? <div style={{ padding: 36, textAlign: "center", border: `1.5px dashed ${BD}`, borderRadius: 12, color: T3, fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Drag tasks here or use the arrow to prioritize</div> : pri.map((t, i) => <Card key={t.id} task={t} index={i} projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "priority")} />)}
+                {pri.length === 0 ? <div style={{ padding: 36, textAlign: "center", border: `1.5px dashed ${BD}`, borderRadius: 12, color: T3, fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Drag tasks here or use the arrow to prioritize</div> : pri.map((t, i) => <Card key={t.id} task={t} index={i} projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onTimerStart={startTimer} onTimerStop={stopTimer} activeTimer={activeTimer} formatTimer={formatTimer} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "priority")} />)}
               </div>
               <div style={{ marginTop: 36 }} onDragOver={e => e.preventDefault()} onDrop={e => onDropSec(e, "backlog")}>
-                <Sec label="Backlog" count={bl.length} />{bl.length === 0 ? <Empty text="No backlog tasks" /> : bl.map((t, i) => <Card key={t.id} task={t} index={i} projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "backlog")} />)}
+                <Sec label="Backlog" count={bl.length} />{bl.length === 0 ? <Empty text="No backlog tasks" /> : bl.map((t, i) => <Card key={t.id} task={t} index={i} projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onTimerStart={startTimer} onTimerStop={stopTimer} activeTimer={activeTimer} formatTimer={formatTimer} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={(e, id) => onDrop(e, id, "backlog")} />)}
               </div>
-              {done.length > 0 && <div style={{ marginTop: 36 }}><Sec label="Completed" count={done.length} muted />{done.map((t, i) => <Card key={t.id} task={t} index={i} isDone projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={() => {}} />)}</div>}
+              {done.length > 0 && <div style={{ marginTop: 36 }}><Sec label="Completed" count={done.length} muted />{done.map((t, i) => <Card key={t.id} task={t} index={i} isDone projName={projName} projects={projects} onToggle={toggle} onSubToggle={toggleSubtask} onTimerStart={startTimer} onTimerStop={stopTimer} activeTimer={activeTimer} formatTimer={formatTimer} onEdit={setEditing} onDel={del} toBl={toBl} toPri={toPri} dragId={dragId} overId={overId} onDS={onDS} onDO={onDO} onDr={() => {}} />)}</div>}
             </div>
           )}
         </div>
@@ -778,14 +822,16 @@ function SubtaskEditor({ subtasks, onChange }) {
     </div>
   );
 }
-function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggle, onEdit, onDel, toBl, toPri, onSubToggle, dragId, overId, onDS, onDO, onDr }) {
+function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggle, onEdit, onDel, toBl, toPri, onSubToggle, onTimerStart, onTimerStop, activeTimer, formatTimer, dragId, overId, onDS, onDO, onDr }) {
   const pc = { high: AC, medium: "#C8922A", low: T3 }, pb = { high: "#FFF3EC", medium: "#FFF8EC", low: "#F5F3F0" };
   const proj = projects && projects.find(p => p.id === t.project);
   const PIcon = proj && PROJECT_ICONS[proj.icon] ? PROJECT_ICONS[proj.icon] : PROJECT_ICONS.folder;
   const subs = JSON.parse(t.subtasks || "[]");
   const subsDone = subs.filter(s => s.done).length;
+  const isTimerActive = activeTimer && activeTimer.taskId === t.id;
+  const timeSpent = parseInt(t.time_spent) || 0;
   return (
-    <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: overId === t.id ? AL : dragId === t.id ? "#F5F2EE" : W, border: `1px solid ${overId === t.id ? AM : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .4 : 1, transition: "all .15s", animationDelay: `${i * .03}s` }}>
+    <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: isTimerActive ? "#FFF8F2" : overId === t.id ? AL : dragId === t.id ? "#F5F2EE" : W, border: `1px solid ${isTimerActive ? AC : overId === t.id ? AM : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .4 : 1, transition: "all .15s", animationDelay: `${i * .03}s` }}>
       {!isDone && <div className="grip-handle" style={{ paddingTop: 5, cursor: "grab" }}><IC.grip /></div>}
       <button onClick={() => onToggle(t.id)} style={{ width: 24, height: 24, minWidth: 24, marginTop: 0, border: `1.5px solid ${isDone ? "#8CB88C" : pc[t.priority]}`, borderRadius: 6, background: isDone ? "#8CB88C" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", padding: 0 }}>{isDone && <IC.check />}</button>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -807,12 +853,15 @@ function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggl
             <div style={{ fontSize: 10.5, color: T3, marginTop: 3, fontWeight: 500 }}>{subsDone}/{subs.length} done</div>
           </div>
         )}
-        <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: 10.5, fontWeight: 600, color: pc[t.priority], background: pb[t.priority], padding: "2px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: ".06em" }}>{t.priority}</span>
           {showProj && <span style={{ fontSize: 10.5, fontWeight: 600, color: T3, background: "#F5F3F0", padding: "2px 8px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><span style={{ display: "flex" }}>{PIcon(T3)}</span> {projName(t.project)}</span>}
+          {isTimerActive && <span style={{ fontSize: 10.5, fontWeight: 700, color: AC, background: AL, padding: "2px 8px", borderRadius: 4, fontVariantNumeric: "tabular-nums", animation: "fadeIn .3s ease" }}>{formatTimer(activeTimer.startedAt)}</span>}
+          {timeSpent > 0 && !isTimerActive && <span style={{ fontSize: 10.5, fontWeight: 500, color: T3, display: "inline-flex", alignItems: "center", gap: 3 }}><IC.clock /> {timeSpent >= 60 ? `${Math.floor(timeSpent / 60)}h ${timeSpent % 60}m` : `${timeSpent}m`}</span>}
         </div>
       </div>
       {!isDone && <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+        <button className="action-btn" title={isTimerActive ? "Stop timer" : "Start timer"} onClick={(e) => { e.stopPropagation(); isTimerActive ? onTimerStop() : onTimerStart(t.id); }} style={{ width: 32, height: 32, border: "none", borderRadius: 8, background: isTimerActive ? AL : "transparent", color: isTimerActive ? AC : T3, cursor: "pointer", display: isTimerActive ? "flex" : undefined, alignItems: "center", justifyContent: "center", padding: 0 }} onMouseEnter={e => { if (!isTimerActive) { e.currentTarget.style.background = AL; e.currentTarget.style.color = AC; } }} onMouseLeave={e => { if (!isTimerActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T3; } }}>{isTimerActive ? <IC.stop /> : <IC.play />}</button>
         {t.in_priority ? <Abtn t="Move to backlog" onClick={() => toBl(t.id)}><IC.down /></Abtn> : <Abtn t="Move to priority" onClick={() => toPri(t.id)}><IC.up /></Abtn>}
         <Abtn t="Edit" onClick={() => onEdit(t)}><IC.edit /></Abtn>
       </div>}
