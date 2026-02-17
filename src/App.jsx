@@ -432,8 +432,10 @@ function TaskApp({ user, onLogout }) {
     if (elapsed > 0) {
       const task = tasks.find(t => t.id === activeTimer.taskId);
       if (task) {
-        const prev = parseInt(task.time_spent) || 0;
-        upd(activeTimer.taskId, { time_spent: prev + elapsed });
+        const sessions = JSON.parse(task.time_sessions || "[]");
+        sessions.push({ date: new Date().toISOString(), minutes: elapsed });
+        const total = sessions.reduce((s, x) => s + x.minutes, 0);
+        upd(activeTimer.taskId, { time_sessions: JSON.stringify(sessions), time_spent: total });
       }
     }
     setActiveTimer(null);
@@ -447,6 +449,8 @@ function TaskApp({ user, onLogout }) {
     return `${m}:${String(s).padStart(2, "0")}`;
   };
 
+  const fmtMins = (m) => m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+
   const upd = async (id, u) => {
     setTasks(p => p.map(t => t.id === id ? { ...t, ...u } : t)); setSyncing(true);
     try { await sb.updateTask(id, u); } catch { load(); }
@@ -459,7 +463,7 @@ function TaskApp({ user, onLogout }) {
     setSyncing(false);
   };
 
-  const save = () => { if (!editing) return; const { id, title, notes, project, priority, subtasks } = editing; setEditing(null); upd(id, { title, notes, project, priority, subtasks: subtasks || "[]" }); };
+  const save = () => { if (!editing) return; const { id, title, notes, project, priority, subtasks, time_sessions, time_spent } = editing; setEditing(null); upd(id, { title, notes, project, priority, subtasks: subtasks || "[]", time_sessions: time_sessions || "[]", time_spent: time_spent || 0 }); };
   const toggle = (id) => { const t = tasks.find(x => x.id === id); if (t) { if (activeTimer && activeTimer.taskId === id) stopTimer(); upd(id, { done: !t.done }); } };
   const toPri = (id) => upd(id, { in_priority: true, sort_order: tasks.filter(t => t.in_priority && !t.done).length });
   const toBl = (id) => upd(id, { in_priority: false, sort_order: 999 });
@@ -737,11 +741,18 @@ function TaskApp({ user, onLogout }) {
       {editing && <Modal onClose={() => setEditing(null)}>
         <div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>Edit task</div>
         <Lbl>Title</Lbl><input value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} style={inp} />
+        <Lbl>Notes</Lbl><textarea value={editing.notes} onChange={e => setEditing({ ...editing, notes: e.target.value })} style={{ ...inp, minHeight: 60, resize: "vertical" }} />
         <Lbl>Project</Lbl><select value={editing.project} onChange={e => setEditing({ ...editing, project: e.target.value })} style={inp}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
         <Lbl>Priority</Lbl><div style={{ display: "flex", gap: 8, marginBottom: 20 }}>{["high", "medium", "low"].map(p => <button key={p} onClick={() => setEditing({ ...editing, priority: p })} style={pbtn(editing.priority === p, p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div>
-        <Lbl>Notes</Lbl><textarea value={editing.notes} onChange={e => setEditing({ ...editing, notes: e.target.value })} style={{ ...inp, minHeight: 60, resize: "vertical" }} />
         <Lbl>Subtasks</Lbl>
         <SubtaskEditor subtasks={JSON.parse(editing.subtasks || "[]")} onChange={subs => setEditing({ ...editing, subtasks: JSON.stringify(subs) })} />
+        <div style={{ marginTop: 20 }}>
+          <Lbl>Time tracked — {fmtMins(JSON.parse(editing.time_sessions || "[]").reduce((s, x) => s + x.minutes, 0))} total</Lbl>
+          <SessionEditor sessions={JSON.parse(editing.time_sessions || "[]")} onChange={sessions => {
+            const total = sessions.reduce((s, x) => s + x.minutes, 0);
+            setEditing({ ...editing, time_sessions: JSON.stringify(sessions), time_spent: total });
+          }} />
+        </div>
         <div style={{ display: "flex", gap: 8, marginTop: 20 }}><button onClick={save} style={{ ...primBtn, flex: 1 }}>Save</button><button onClick={() => { del(editing.id); setEditing(null); }} style={{ padding: "11px 18px", border: "1.5px solid #F0D5D0", borderRadius: 10, background: "#FFF5F3", color: "#C0392B", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, fontFamily: "'Satoshi',sans-serif" }}><IC.trash /> Delete</button></div>
       </Modal>}
 
@@ -822,6 +833,65 @@ function SubtaskEditor({ subtasks, onChange }) {
     </div>
   );
 }
+
+function SessionEditor({ sessions, onChange }) {
+  const [addMins, setAddMins] = useState("");
+  const [editIdx, setEditIdx] = useState(null);
+  const [editVal, setEditVal] = useState("");
+
+  const addManual = () => {
+    const m = parseInt(addMins);
+    if (!m || m <= 0) return;
+    onChange([...sessions, { date: new Date().toISOString(), minutes: m, manual: true }]);
+    setAddMins("");
+  };
+
+  const remove = (i) => onChange(sessions.filter((_, idx) => idx !== i));
+
+  const saveEdit = (i) => {
+    const m = parseInt(editVal);
+    if (!m || m <= 0) { remove(i); setEditIdx(null); return; }
+    const updated = [...sessions];
+    updated[i] = { ...updated[i], minutes: m };
+    onChange(updated);
+    setEditIdx(null);
+  };
+
+  const fmtDate = (d) => {
+    try {
+      const dt = new Date(d);
+      return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + " " + dt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    } catch { return ""; }
+  };
+
+  return (
+    <div>
+      {sessions.length === 0 && <div style={{ fontSize: 12, color: T3, fontStyle: "italic", padding: "4px 0 8px" }}>No sessions recorded</div>}
+      {sessions.map((s, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: `1px solid ${BD}` }}>
+          <span style={{ fontSize: 12, color: T3, flex: 1 }}>{fmtDate(s.date)}{s.manual ? " (manual)" : ""}</span>
+          {editIdx === i ? (
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <input type="number" value={editVal} onChange={e => setEditVal(e.target.value)} onKeyDown={e => e.key === "Enter" && saveEdit(i)} style={{ width: 52, padding: "4px 6px", border: `1.5px solid ${BD}`, borderRadius: 5, fontSize: 12, textAlign: "center" }} autoFocus />
+              <span style={{ fontSize: 11, color: T3 }}>min</span>
+              <button onClick={() => saveEdit(i)} style={{ background: "none", border: "none", color: AC, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>OK</button>
+            </div>
+          ) : (
+            <>
+              <span style={{ fontSize: 12, fontWeight: 600, color: T2 }}>{s.minutes}m</span>
+              <button onClick={() => { setEditIdx(i); setEditVal(String(s.minutes)); }} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 2 }}><IC.edit /></button>
+              <button onClick={() => remove(i)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 2 }}><IC.x /></button>
+            </>
+          )}
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+        <input type="number" value={addMins} onChange={e => setAddMins(e.target.value)} onKeyDown={e => e.key === "Enter" && addManual()} style={{ ...inp, marginBottom: 0, width: 72, padding: "8px 10px", textAlign: "center" }} placeholder="Min" />
+        <button onClick={addManual} disabled={!addMins || parseInt(addMins) <= 0} style={{ padding: "8px 12px", border: "none", borderRadius: 7, background: addMins && parseInt(addMins) > 0 ? T1 : BD, color: W, cursor: addMins && parseInt(addMins) > 0 ? "pointer" : "default", fontSize: 12, fontWeight: 600, fontFamily: "'Satoshi',sans-serif", whiteSpace: "nowrap" }}>+ Add time</button>
+      </div>
+    </div>
+  );
+}
 function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggle, onEdit, onDel, toBl, toPri, onSubToggle, onTimerStart, onTimerStop, activeTimer, formatTimer, dragId, overId, onDS, onDO, onDr }) {
   const pc = { high: AC, medium: "#C8922A", low: T3 }, pb = { high: "#FFF3EC", medium: "#FFF8EC", low: "#F5F3F0" };
   const proj = projects && projects.find(p => p.id === t.project);
@@ -857,7 +927,7 @@ function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggl
           <span style={{ fontSize: 10.5, fontWeight: 600, color: pc[t.priority], background: pb[t.priority], padding: "2px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: ".06em" }}>{t.priority}</span>
           {showProj && <span style={{ fontSize: 10.5, fontWeight: 600, color: T3, background: "#F5F3F0", padding: "2px 8px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><span style={{ display: "flex" }}>{PIcon(T3)}</span> {projName(t.project)}</span>}
           {isTimerActive && <span style={{ fontSize: 10.5, fontWeight: 700, color: AC, background: AL, padding: "2px 8px", borderRadius: 4, fontVariantNumeric: "tabular-nums", animation: "fadeIn .3s ease" }}>{formatTimer(activeTimer.startedAt)}</span>}
-          {timeSpent > 0 && !isTimerActive && <span style={{ fontSize: 10.5, fontWeight: 500, color: T3, display: "inline-flex", alignItems: "center", gap: 3 }}><IC.clock /> {timeSpent >= 60 ? `${Math.floor(timeSpent / 60)}h ${timeSpent % 60}m` : `${timeSpent}m`}</span>}
+          {timeSpent > 0 && !isTimerActive && <span style={{ fontSize: 10.5, fontWeight: 500, color: T2, background: "#F5F3F0", padding: "2px 8px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3 }}><IC.clock /> {timeSpent >= 60 ? `${Math.floor(timeSpent / 60)}h ${timeSpent % 60}m` : `${timeSpent}m`}</span>}
         </div>
       </div>
       {!isDone && <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
