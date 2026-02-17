@@ -72,17 +72,16 @@ const sb = {
   updateTask: (id, u) => sb.query("PATCH", `tasks?id=eq.${id}`, u),
   deleteTask: (id) => sb.query("DELETE", `tasks?id=eq.${id}`),
   // Edge functions
-async callFn(name, body) {
-    const LEGACY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0c2JrZ3BrY2h6bGFqYWVraWF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNTg2NzUsImV4cCI6MjA4NjczNDY3NX0.BEgX5nx-np8EQKP73QVXFf8D25rT10HWFDxj4LQuYSY";
+  async callFn(name, body) {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
       method: "POST",
-      headers: { apikey: LEGACY_KEY, Authorization: `Bearer ${LEGACY_KEY}`, "Content-Type": "application/json" },
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Function ${name}: ${res.status}`);
     return res.json();
-    },
-  };
+  },
+};
 
 // ============================================================
 // Icons
@@ -124,6 +123,7 @@ const IC = {
   sync: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8a5 5 0 019.5-1.5M13 8a5 5 0 01-9.5 1.5"/><polyline points="3,3 3,6.5 6.5,6.5"/><polyline points="13,13 13,9.5 9.5,9.5"/></svg>,
   logout: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3"/><polyline points="10,11 14,8 10,5"/><line x1="14" y1="8" x2="6" y2="8"/></svg>,
   overview: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/></svg>,
+  download: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v8"/><polyline points="4,7 8,11 12,7"/><path d="M2 13h12"/></svg>,
 };
 
 // Colors
@@ -474,6 +474,33 @@ function TaskApp({ user, onLogout }) {
     setAiLoading(false);
   };
 
+  // Export data
+  const exportData = () => {
+    const data = {
+      exported_at: new Date().toISOString(),
+      projects: projects.map(p => ({ name: p.name, icon: p.icon })),
+      tasks: tasks.map(t => ({
+        title: t.title,
+        notes: t.notes,
+        project: projects.find(p => p.id === t.project)?.name || t.project,
+        priority: t.priority,
+        status: t.done ? "completed" : t.in_priority ? "priority" : "backlog",
+        subtasks: JSON.parse(t.subtasks || "[]"),
+        created: t.created_at,
+      })),
+      summary: {
+        total_tasks: tasks.length,
+        completed: tasks.filter(t => t.done).length,
+        active: tasks.filter(t => !t.done).length,
+        by_project: projects.map(p => ({ name: p.name, active: tasks.filter(t => t.project === p.id && !t.done).length, completed: tasks.filter(t => t.project === p.id && t.done).length })),
+      },
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `tasks-export-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Derived
   const allProjects = [{ id: "overview", name: "Overview", icon: "overview" }, ...projects];
   const filt = tab === "overview" ? tasks : tasks.filter(t => t.project === tab);
@@ -549,7 +576,10 @@ function TaskApp({ user, onLogout }) {
         <div style={{ padding: "8px 10px", borderTop: `1px solid ${BD}` }}>
           <button onClick={() => setTimeOpen(true)} className="sb" style={{ width: "100%", padding: "11px 14px", border: `1.5px solid ${BD}`, borderRadius: 10, background: "transparent", color: T2, cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, fontFamily: "'Satoshi', sans-serif" }}><IC.clock /> I have time now...</button>
         </div>
-        <div style={{ padding: "8px 10px 14px" }}>
+        <div style={{ padding: "4px 10px" }}>
+          <button onClick={exportData} className="sb" style={{ width: "100%", padding: "9px 14px", border: "none", borderRadius: 8, background: "transparent", color: T3, cursor: "pointer", fontSize: 12.5, fontWeight: 500, display: "flex", alignItems: "center", gap: 8, fontFamily: "'Satoshi', sans-serif" }}><IC.download /> Export data</button>
+        </div>
+        <div style={{ padding: "4px 10px calc(14px + env(safe-area-inset-bottom, 0px))" }}>
           <button onClick={onLogout} className="sb" style={{ width: "100%", padding: "9px 14px", border: "none", borderRadius: 8, background: "transparent", color: T3, cursor: "pointer", fontSize: 12.5, fontWeight: 500, display: "flex", alignItems: "center", gap: 8, fontFamily: "'Satoshi', sans-serif" }}><IC.logout /> Sign out</button>
         </div>
       </div>
@@ -644,7 +674,20 @@ function TaskApp({ user, onLogout }) {
       </div>
 
       {/* Add task modal */}
-      {addOpen && <Modal onClose={() => setAddOpen(false)}><div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>New task</div><Lbl>Title</Lbl><input autoFocus value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} onKeyDown={e => e.key === "Enter" && addTask()} style={inp} placeholder="What needs to be done?" /><Lbl>Project</Lbl><select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={inp}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select><Lbl>Priority</Lbl><div style={{ display: "flex", gap: 8, marginBottom: 20 }}>{["high", "medium", "low"].map(p => <button key={p} onClick={() => setForm({ ...form, priority: p })} style={pbtn(form.priority === p, p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div><Lbl>Notes</Lbl><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Additional details..." /><button onClick={addTask} style={primBtn}>Add task</button></Modal>}
+      {addOpen && <Modal onClose={() => setAddOpen(false)}>
+        <div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>New task</div>
+        <Lbl>Title</Lbl>
+        <input autoFocus value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
+          onKeyDown={e => { if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); document.getElementById("add-notes")?.focus(); } }}
+          style={inp} placeholder="What needs to be done?" />
+        <Lbl>Notes</Lbl>
+        <textarea id="add-notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Additional details..." />
+        <Lbl>Project</Lbl>
+        <select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={inp}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+        <Lbl>Priority</Lbl>
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>{["high", "medium", "low"].map(p => <button key={p} onClick={() => setForm({ ...form, priority: p })} style={pbtn(form.priority === p, p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div>
+        <button onClick={addTask} style={primBtn}>Add task</button>
+      </Modal>}
 
       {/* Edit task modal */}
       {editing && <Modal onClose={() => setEditing(null)}>
@@ -789,7 +832,15 @@ function Empty({ text }) { return <div style={{ padding: 28, textAlign: "center"
 
 function Modal({ children, onClose }) {
   const mob = window.innerWidth <= 640;
-  return <div style={{ position: "fixed", inset: 0, background: "rgba(26,23,21,.3)", backdropFilter: "blur(6px)", display: "flex", alignItems: mob ? "flex-end" : "center", justifyContent: "center", zIndex: 100 }} onClick={onClose}><div className="modal-content" onClick={e => e.stopPropagation()} style={{ background: W, border: `1px solid ${BD}`, borderRadius: mob ? "16px 16px 0 0" : 16, padding: mob ? "24px 20px 32px" : 30, width: "100%", maxWidth: mob ? "100%" : 420, maxHeight: mob ? "85vh" : "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(26,23,21,.12)" }}>{children}</div></div>;
+  const mouseDownInside = { current: false };
+  return <div style={{ position: "fixed", inset: 0, background: "rgba(26,23,21,.3)", backdropFilter: "blur(6px)", display: "flex", alignItems: mob ? "flex-end" : "center", justifyContent: "center", zIndex: 100 }}
+    onMouseDown={e => { mouseDownInside.current = false; }}
+    onMouseUp={e => { if (!mouseDownInside.current && e.target === e.currentTarget) onClose(); }}
+    onTouchEnd={e => { if (e.target === e.currentTarget) onClose(); }}
+  ><div className="modal-content"
+    onMouseDown={e => { mouseDownInside.current = true; }}
+    onClick={e => e.stopPropagation()}
+    style={{ background: W, border: `1px solid ${BD}`, borderRadius: mob ? "16px 16px 0 0" : 16, padding: mob ? "24px 20px calc(32px + env(safe-area-inset-bottom, 0px))" : 30, width: "100%", maxWidth: mob ? "100%" : 420, maxHeight: mob ? "80vh" : "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(26,23,21,.12)", WebkitOverflowScrolling: "touch" }}>{children}</div></div>;
 }
 
 function Lbl({ children }) { return <div style={{ fontSize: 11, fontWeight: 600, color: T3, marginBottom: 6, textTransform: "uppercase", letterSpacing: ".08em" }}>{children}</div>; }
