@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // ============================================================
 // SUPABASE CONFIG — Replace with your values (see DEPLOY-GUIDE)
 // ============================================================
-const SUPABASE_URL = "https://vtsbkgpkchzlajaekiav.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_HbLTQoeTTIiw81nHYV3Pzg_b3Oh0Hxf";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "YOUR_SUPABASE_ANON_KEY";
 
 // ============================================================
 // Supabase client (no SDK, just fetch)
@@ -126,6 +126,9 @@ const IC = {
   download: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v8"/><polyline points="4,7 8,11 12,7"/><path d="M2 13h12"/></svg>,
   play: () => <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" stroke="none"><polygon points="4,2 14,8 4,14"/></svg>,
   stop: () => <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" stroke="none"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>,
+  archive: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="2" width="13" height="4" rx="1"/><path d="M2.5 6v7a1 1 0 001 1h9a1 1 0 001-1V6"/><line x1="6" y1="9.5" x2="10" y2="9.5"/></svg>,
+  chevron: () => <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6,4 10,8 6,12"/></svg>,
+  unarchive: () => <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="2" width="13" height="4" rx="1"/><path d="M2.5 6v7a1 1 0 001 1h9a1 1 0 001-1V6"/><polyline points="6,11 8,8.5 10,11"/></svg>,
 };
 
 // Colors
@@ -311,6 +314,11 @@ function TaskApp({ user, onLogout }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [activeTimer, setActiveTimer] = useState(null); // { taskId, startedAt }
   const [timerTick, setTimerTick] = useState(0);
+  const [showArchived, setShowArchived] = useState(false);
+  const activeTimerRef = useRef(null);
+  const tasksRef = useRef(tasks);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  useEffect(() => { activeTimerRef.current = activeTimer; }, [activeTimer]);
 
   useEffect(() => {
     const check = () => {
@@ -348,9 +356,9 @@ function TaskApp({ user, onLogout }) {
   useEffect(() => { load(); }, [load]);
 
   // Project management
-  const addProject = async () => {
+  const addProject = async (parentId = null) => {
     if (!newProjName.trim()) return;
-    const p = { id: genId(), user_id: uid, name: newProjName.trim(), sort_order: projects.length, icon: newProjIcon };
+    const p = { id: genId(), user_id: uid, name: newProjName.trim(), sort_order: projects.length, icon: newProjIcon, parent_id: parentId, archived: false };
     setProjects(prev => [...prev, p]); setNewProjName(""); setNewProjIcon("folder"); setSyncing(true);
     try { await sb.insertProject(p); } catch { load(); }
     setSyncing(false);
@@ -374,10 +382,24 @@ function TaskApp({ user, onLogout }) {
 
   const renameProject = async () => {
     if (!editingProj || !editingProj.name.trim()) return;
-    setProjects(prev => prev.map(p => p.id === editingProj.id ? { ...p, name: editingProj.name, icon: editingProj.icon } : p));
+    setProjects(prev => prev.map(p => p.id === editingProj.id ? { ...p, name: editingProj.name, icon: editingProj.icon, parent_id: editingProj.parent_id } : p));
     setSyncing(true);
-    try { await sb.updateProject(editingProj.id, { name: editingProj.name, icon: editingProj.icon }); } catch { load(); }
+    try { await sb.updateProject(editingProj.id, { name: editingProj.name, icon: editingProj.icon, parent_id: editingProj.parent_id || null }); } catch { load(); }
     setSyncing(false); setEditingProj(null);
+  };
+
+  const archiveProject = async (id, archived) => {
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, archived } : p));
+    // Also archive/unarchive sub-projects
+    const children = projects.filter(p => p.parent_id === id);
+    for (const c of children) setProjects(prev => prev.map(p => p.id === c.id ? { ...p, archived } : p));
+    if (archived && tab === id) setTab("overview");
+    setSyncing(true);
+    try {
+      await sb.updateProject(id, { archived });
+      for (const c of children) await sb.updateProject(c.id, { archived });
+    } catch { load(); }
+    setSyncing(false);
   };
 
   const moveProject = async (id, dir) => {
@@ -421,24 +443,28 @@ function TaskApp({ user, onLogout }) {
   };
 
   const startTimer = (taskId) => {
-    if (activeTimer && activeTimer.taskId !== taskId) stopTimer();
-    setActiveTimer({ taskId, startedAt: Date.now() });
+    if (activeTimerRef.current && activeTimerRef.current.taskId !== taskId) stopTimer();
+    const t = { taskId, startedAt: Date.now() };
+    setActiveTimer(t);
+    activeTimerRef.current = t;
     setTimerTick(0);
   };
 
   const stopTimer = () => {
-    if (!activeTimer) return;
-    const elapsed = Math.round((Date.now() - activeTimer.startedAt) / 60000); // minutes
+    const timer = activeTimerRef.current;
+    if (!timer) return;
+    const elapsed = Math.round((Date.now() - timer.startedAt) / 60000);
     if (elapsed > 0) {
-      const task = tasks.find(t => t.id === activeTimer.taskId);
+      const task = tasksRef.current.find(t => t.id === timer.taskId);
       if (task) {
         const sessions = JSON.parse(task.time_sessions || "[]");
         sessions.push({ date: new Date().toISOString(), minutes: elapsed });
         const total = sessions.reduce((s, x) => s + x.minutes, 0);
-        upd(activeTimer.taskId, { time_sessions: JSON.stringify(sessions), time_spent: total });
+        upd(timer.taskId, { time_sessions: JSON.stringify(sessions), time_spent: total });
       }
     }
     setActiveTimer(null);
+    activeTimerRef.current = null;
     setTimerTick(0);
   };
 
@@ -550,12 +576,18 @@ function TaskApp({ user, onLogout }) {
   };
 
   // Derived
-  const allProjects = [{ id: "overview", name: "Overview", icon: "overview" }, ...projects];
-  const filt = tab === "overview" ? tasks : tasks.filter(t => t.project === tab);
+  const activeProjects = projects.filter(p => !p.archived);
+  const archivedProjects = projects.filter(p => p.archived);
+  const topLevel = activeProjects.filter(p => !p.parent_id);
+  const getChildren = (parentId) => activeProjects.filter(p => p.parent_id === parentId);
+  const allProjects = [{ id: "overview", name: "Overview", icon: "overview" }, ...activeProjects];
+  const childIds = (id) => [id, ...activeProjects.filter(p => p.parent_id === id).map(p => p.id)];
+  const filt = tab === "overview" ? tasks.filter(t => !projects.find(p => p.id === t.project)?.archived) : tasks.filter(t => childIds(tab).includes(t.project));
   const pri = filt.filter(t => t.in_priority && !t.done).sort((a, b) => a.sort_order - b.sort_order);
   const bl = filt.filter(t => !t.in_priority && !t.done).sort((a, b) => { const p = { high: 0, medium: 1, low: 2 }; return p[a.priority] !== p[b.priority] ? p[a.priority] - p[b.priority] : a.sort_order - b.sort_order; });
   const done = filt.filter(t => t.done);
-  const totA = tasks.filter(t => !t.done).length, totP = tasks.filter(t => t.in_priority && !t.done).length;
+  const totA = tasks.filter(t => !t.done && !projects.find(p => p.id === t.project)?.archived).length;
+  const totP = tasks.filter(t => t.in_priority && !t.done && !projects.find(p => p.id === t.project)?.archived).length;
 
   const projName = (id) => projects.find(p => p.id === id)?.name || id;
 
@@ -578,14 +610,14 @@ function TaskApp({ user, onLogout }) {
 
       {/* Sidebar */}
       <div style={{ width: sidebar ? 256 : 0, minWidth: sidebar ? 256 : 0, background: W, borderRight: `1px solid ${BD}`, transition: "all .3s cubic-bezier(.4,0,.2,1)", overflow: "hidden", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, height: "100dvh", zIndex: 50, boxShadow: sidebar && isMobile ? "4px 0 24px rgba(26,23,21,.1)" : "none" }}>
-        <div style={{ padding: "28px 22px 20px", borderBottom: `1px solid ${BD}` }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 22, color: T1 }}>Tasks</div>
-            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-              {syncing && <div style={{ animation: "spin 1s linear infinite", color: T3, display: "flex" }}><IC.sync /></div>}
-            </div>
+        <div style={{ padding: isMobile ? "14px 16px" : "18px 22px", borderBottom: `1px solid ${BD}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: isMobile ? 20 : 22, color: T1 }}>Tasks</div>
+            <div style={{ fontSize: 12, color: T3, marginTop: 2, fontWeight: 500, letterSpacing: ".02em" }}>{totA} active / {totP} prioritized</div>
           </div>
-          <div style={{ fontSize: 12, color: T3, marginTop: 4, fontWeight: 500, letterSpacing: ".02em" }}>{totA} active / {totP} prioritized</div>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            {syncing && <div style={{ animation: "spin 1s linear infinite", color: T3, display: "flex" }}><IC.sync /></div>}
+          </div>
         </div>
         {error && <div style={{ padding: "10px 22px", background: "#FFF5F3", borderBottom: "1px solid #F0D5D0", fontSize: 12, color: "#C0392B", fontWeight: 500 }}>{error}<button onClick={load} style={{ marginLeft: 8, background: "none", border: "none", color: AC, cursor: "pointer", fontWeight: 600, fontSize: 12, textDecoration: "underline" }}>Retry</button></div>}
 
@@ -602,17 +634,53 @@ function TaskApp({ user, onLogout }) {
             <span style={{ fontSize: 11, fontWeight: 600, color: tab === "overview" ? AC : T3 }}>{totA}</span>
           </button>
 
-          {/* Project tabs */}
-          {projects.map((p, i) => {
+          {/* Project tabs - hierarchical */}
+          {topLevel.map((p, i) => {
             const c = tasks.filter(t => t.project === p.id && !t.done).length;
             const a = tab === p.id;
             const PIcon = PROJECT_ICONS[p.icon] || PROJECT_ICONS.folder;
-            return (<button key={p.id} className="sb" onClick={() => selectTab(p.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 12px", border: "none", borderRadius: 8, background: a ? AL : "transparent", color: a ? AC : T2, cursor: "pointer", fontSize: 13.5, fontWeight: a ? 600 : 500, textAlign: "left", marginBottom: 1, animation: `slideIn .2s ease ${i * .03}s both`, fontFamily: "'Satoshi', sans-serif" }}>
-              <span style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", background: a ? AC : "#F0ECE7" }}>{PIcon(a ? "#fff" : T3)}</span>
-              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-              {c > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: a ? AC : T3 }}>{c}</span>}
-            </button>);
+            const children = getChildren(p.id);
+            const childTaskCount = children.reduce((sum, ch) => sum + tasks.filter(t => t.project === ch.id && !t.done).length, 0);
+            return (<div key={p.id}>
+              <button className="sb" onClick={() => selectTab(p.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 12px", border: "none", borderRadius: 8, background: a ? AL : "transparent", color: a ? AC : T2, cursor: "pointer", fontSize: 13.5, fontWeight: a ? 600 : 500, textAlign: "left", marginBottom: 1, animation: `slideIn .2s ease ${i * .03}s both`, fontFamily: "'Satoshi', sans-serif" }}>
+                <span style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", background: a ? AC : "#F0ECE7" }}>{PIcon(a ? "#fff" : T3)}</span>
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                {(c + childTaskCount) > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: a ? AC : T3 }}>{c + childTaskCount}</span>}
+              </button>
+              {children.map(ch => {
+                const cc = tasks.filter(t => t.project === ch.id && !t.done).length;
+                const ca = tab === ch.id;
+                const CIcon = PROJECT_ICONS[ch.icon] || PROJECT_ICONS.folder;
+                return (
+                  <button key={ch.id} className="sb" onClick={() => selectTab(ch.id)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 12px 7px 32px", border: "none", borderRadius: 8, background: ca ? AL : "transparent", color: ca ? AC : T3, cursor: "pointer", fontSize: 12.5, fontWeight: ca ? 600 : 500, textAlign: "left", marginBottom: 1, fontFamily: "'Satoshi', sans-serif" }}>
+                    <span style={{ width: 22, height: 22, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", background: ca ? AC : "#F0ECE7" }}>{CIcon(ca ? "#fff" : T3)}</span>
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ch.name}</span>
+                    {cc > 0 && <span style={{ fontSize: 10, fontWeight: 600, color: ca ? AC : T3 }}>{cc}</span>}
+                  </button>
+                );
+              })}
+            </div>);
           })}
+
+          {/* Archived section */}
+          {archivedProjects.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <button onClick={() => setShowArchived(!showArchived)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", background: "none", border: "none", cursor: "pointer", color: T3, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".1em", fontFamily: "'Satoshi', sans-serif", width: "100%" }}>
+                <span style={{ display: "flex", transform: showArchived ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .15s" }}><IC.chevron /></span>
+                Archived ({archivedProjects.length})
+              </button>
+              {showArchived && archivedProjects.map(p => {
+                const PIcon = PROJECT_ICONS[p.icon] || PROJECT_ICONS.folder;
+                const a = tab === p.id;
+                return (
+                  <button key={p.id} className="sb" onClick={() => selectTab(p.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "7px 12px 7px 20px", border: "none", borderRadius: 8, background: a ? AL : "transparent", color: a ? AC : T3, cursor: "pointer", fontSize: 13, fontWeight: a ? 600 : 500, textAlign: "left", marginBottom: 1, fontFamily: "'Satoshi', sans-serif", opacity: 0.7 }}>
+                    <span style={{ width: 24, height: 24, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", background: a ? AC : "#F0ECE7" }}>{PIcon(a ? "#fff" : T3)}</span>
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {projects.length === 0 && (
             <div style={{ padding: "20px 12px", textAlign: "center", color: T3, fontSize: 13, fontStyle: "italic" }}>
@@ -731,7 +799,7 @@ function TaskApp({ user, onLogout }) {
         <Lbl>Notes</Lbl>
         <textarea id="add-notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Additional details..." />
         <Lbl>Project</Lbl>
-        <select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={inp}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+        <select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={inp}>{activeProjects.map(p => <option key={p.id} value={p.id}>{p.parent_id ? `  ↳ ${p.name}` : p.name}</option>)}</select>
         <Lbl>Priority</Lbl>
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>{["high", "medium", "low"].map(p => <button key={p} onClick={() => setForm({ ...form, priority: p })} style={pbtn(form.priority === p, p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div>
         <button onClick={addTask} style={primBtn}>Add task</button>
@@ -742,7 +810,7 @@ function TaskApp({ user, onLogout }) {
         <div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>Edit task</div>
         <Lbl>Title</Lbl><input value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} style={inp} />
         <Lbl>Notes</Lbl><textarea value={editing.notes} onChange={e => setEditing({ ...editing, notes: e.target.value })} style={{ ...inp, minHeight: 60, resize: "vertical" }} />
-        <Lbl>Project</Lbl><select value={editing.project} onChange={e => setEditing({ ...editing, project: e.target.value })} style={inp}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+        <Lbl>Project</Lbl><select value={editing.project} onChange={e => setEditing({ ...editing, project: e.target.value })} style={inp}>{activeProjects.map(p => <option key={p.id} value={p.id}>{p.parent_id ? `  ↳ ${p.name}` : p.name}</option>)}</select>
         <Lbl>Priority</Lbl><div style={{ display: "flex", gap: 8, marginBottom: 20 }}>{["high", "medium", "low"].map(p => <button key={p} onClick={() => setEditing({ ...editing, priority: p })} style={pbtn(editing.priority === p, p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div>
         <Lbl>Subtasks</Lbl>
         <SubtaskEditor subtasks={JSON.parse(editing.subtasks || "[]")} onChange={subs => setEditing({ ...editing, subtasks: JSON.stringify(subs) })} />
@@ -761,7 +829,7 @@ function TaskApp({ user, onLogout }) {
         <Lbl>New project</Lbl>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input value={newProjName} onChange={e => setNewProjName(e.target.value)} onKeyDown={e => e.key === "Enter" && addProject()} style={{ ...inp, marginBottom: 0, flex: 1 }} placeholder="Project name..." autoFocus />
-          <button onClick={addProject} style={{ padding: "10px 16px", border: "none", borderRadius: 9, background: T1, color: W, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "'Satoshi',sans-serif", whiteSpace: "nowrap" }}>Add</button>
+          <button onClick={() => addProject()} style={{ padding: "10px 16px", border: "none", borderRadius: 9, background: T1, color: W, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "'Satoshi',sans-serif", whiteSpace: "nowrap" }}>Add</button>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 20 }}>
           {ICON_KEYS.map(k => (
@@ -770,24 +838,43 @@ function TaskApp({ user, onLogout }) {
             </button>
           ))}
         </div>
-        {projects.length > 0 && <Lbl>Your projects</Lbl>}
-        {projects.length === 0 && <div style={{ color: T3, fontSize: 13, textAlign: "center", padding: "16px 0", fontStyle: "italic" }}>No projects yet</div>}
-        {projects.map((p, i) => {
+        {activeProjects.length > 0 && <Lbl>Your projects</Lbl>}
+        {activeProjects.length === 0 && <div style={{ color: T3, fontSize: 13, textAlign: "center", padding: "16px 0", fontStyle: "italic" }}>No projects yet</div>}
+        {activeProjects.map((p, i) => {
           const PIcon = PROJECT_ICONS[p.icon] || PROJECT_ICONS.folder;
+          const isChild = !!p.parent_id;
+          const parentName = isChild ? projects.find(x => x.id === p.parent_id)?.name : null;
           return (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", borderBottom: `1px solid ${BD}` }}>
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", paddingLeft: isChild ? 20 : 0, borderBottom: `1px solid ${BD}` }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <button onClick={() => moveProject(p.id, -1)} disabled={i === 0} style={{ background: "none", border: "none", color: i === 0 ? BD : T3, cursor: i === 0 ? "default" : "pointer", display: "flex", padding: 1 }}><IC.up /></button>
-                <button onClick={() => moveProject(p.id, 1)} disabled={i === projects.length - 1} style={{ background: "none", border: "none", color: i === projects.length - 1 ? BD : T3, cursor: i === projects.length - 1 ? "default" : "pointer", display: "flex", padding: 1 }}><IC.down /></button>
+                <button onClick={() => moveProject(p.id, 1)} disabled={i === activeProjects.length - 1} style={{ background: "none", border: "none", color: i === activeProjects.length - 1 ? BD : T3, cursor: i === activeProjects.length - 1 ? "default" : "pointer", display: "flex", padding: 1 }}><IC.down /></button>
               </div>
               <span style={{ color: T2, display: "flex" }}>{PIcon(T2)}</span>
-              <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: T1 }}>{p.name}</span>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: 14, fontWeight: 500, color: T1 }}>{p.name}</span>
+                {isChild && <span style={{ fontSize: 10, color: T3, marginLeft: 6 }}>in {parentName}</span>}
+              </div>
               <span style={{ fontSize: 11, color: T3 }}>{tasks.filter(t => t.project === p.id && !t.done).length}</span>
               <button onClick={() => setEditingProj({ ...p })} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 4 }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.edit /></button>
+              <button onClick={() => archiveProject(p.id, true)} title="Archive" style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 4 }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.archive /></button>
               <button onClick={() => removeProject(p.id)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 4 }} onMouseEnter={e => e.currentTarget.style.color = "#C0392B"} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.trash /></button>
             </div>
           );
         })}
+        {archivedProjects.length > 0 && <div style={{ marginTop: 16 }}><Lbl>Archived</Lbl>
+          {archivedProjects.map(p => {
+            const PIcon = PROJECT_ICONS[p.icon] || PROJECT_ICONS.folder;
+            return (
+              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: `1px solid ${BD}`, opacity: 0.7 }}>
+                <span style={{ color: T3, display: "flex" }}>{PIcon(T3)}</span>
+                <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: T3 }}>{p.name}</span>
+                <button onClick={() => archiveProject(p.id, false)} title="Unarchive" style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 4 }} onMouseEnter={e => e.currentTarget.style.color = AC} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.unarchive /></button>
+                <button onClick={() => removeProject(p.id)} style={{ background: "none", border: "none", color: T3, cursor: "pointer", display: "flex", padding: 4 }} onMouseEnter={e => e.currentTarget.style.color = "#C0392B"} onMouseLeave={e => e.currentTarget.style.color = T3}><IC.trash /></button>
+              </div>
+            );
+          })}
+        </div>}
       </Modal>}
 
       {/* Edit project modal */}
@@ -800,7 +887,17 @@ function TaskApp({ user, onLogout }) {
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", gap: 8 }}><button onClick={renameProject} style={{ ...primBtn, flex: 1 }}>Save</button><button onClick={() => { removeProject(editingProj.id); setEditingProj(null); }} style={{ padding: "11px 18px", border: "1.5px solid #F0D5D0", borderRadius: 10, background: "#FFF5F3", color: "#C0392B", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, fontFamily: "'Satoshi',sans-serif" }}><IC.trash /> Delete project</button></div></Modal>}
+        <Lbl>Parent folder</Lbl>
+        <select value={editingProj.parent_id || ""} onChange={e => setEditingProj({ ...editingProj, parent_id: e.target.value || null })} style={inp}>
+          <option value="">None (top level)</option>
+          {projects.filter(p => p.id !== editingProj.id && !p.parent_id && !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={renameProject} style={{ ...primBtn, flex: 1 }}>Save</button>
+          <button onClick={() => { archiveProject(editingProj.id, !editingProj.archived); setEditingProj(null); }} style={{ padding: "11px 18px", border: `1.5px solid ${BD}`, borderRadius: 10, background: "#F5F3F0", color: T2, cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, fontFamily: "'Satoshi',sans-serif" }}>{editingProj.archived ? <><IC.unarchive /> Restore</> : <><IC.archive /> Archive</>}</button>
+          <button onClick={() => { removeProject(editingProj.id); setEditingProj(null); }} style={{ padding: "11px 18px", border: "1.5px solid #F0D5D0", borderRadius: 10, background: "#FFF5F3", color: "#C0392B", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, fontFamily: "'Satoshi',sans-serif" }}><IC.trash /></button>
+        </div>
+      </Modal>}
 
       {/* Focus time modal */}
       {timeOpen && <Modal onClose={() => setTimeOpen(false)}><div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 4 }}>Focus time</div><div style={{ fontSize: 13, color: T2, marginBottom: 22, fontWeight: 500 }}>How long can you work? I'll pick your top tasks.</div><div style={{ display: "flex", gap: 8, marginBottom: 18 }}>{[15, 30, 60, 120].map(m => <button key={m} onClick={() => setMins(m)} style={{ flex: 1, padding: "11px 8px", border: mins === m ? `2px solid ${AC}` : `1.5px solid ${BD}`, borderRadius: 10, background: mins === m ? AL : W, color: mins === m ? AC : T2, cursor: "pointer", fontSize: 13.5, fontWeight: 600, fontFamily: "'Satoshi',sans-serif" }}>{m < 60 ? `${m}m` : `${m / 60}h`}</button>)}</div><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 22 }}><span style={{ fontSize: 13, color: T3, fontWeight: 500 }}>Custom:</span><input type="number" value={mins} onChange={e => setMins(Math.max(5, parseInt(e.target.value) || 0))} style={{ ...inp, width: 72, marginBottom: 0, textAlign: "center" }} /><span style={{ fontSize: 13, color: T3, fontWeight: 500 }}>minutes</span></div><button onClick={suggest} style={primBtn}><span style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}><IC.zap /> Show me what to work on</span></button></Modal>}
