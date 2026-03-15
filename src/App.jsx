@@ -304,7 +304,7 @@ function TaskApp({ user, onLogout }) {
   const [dragId, setDragId] = useState(null);
   const [overId, setOverId] = useState(null);
   const [sidebar, setSidebar] = useState(false);
-  const [form, setForm] = useState({ title: "", notes: "", project: "", priority: "medium" });
+  const [form, setForm] = useState({ title: "", notes: "", project: "", priority: "medium", due_date: "" });
   const [mins, setMins] = useState(60);
   const [projModal, setProjModal] = useState(false);
   const [newProjName, setNewProjName] = useState("");
@@ -347,14 +347,35 @@ function TaskApp({ user, onLogout }) {
   const uid = user.id;
 
   const load = useCallback(async () => {
+    setSyncing(true);
     try {
       const [p, t] = await Promise.all([sb.getProjects(uid), sb.getTasks(uid)]);
       setProjects(p || []); setTasks(t || []); setError(null);
     } catch (e) { setError("Could not load data. Check connection."); }
-    finally { setLoading(false); }
+    finally { setLoading(false); setSyncing(false); }
   }, [uid]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Live polling every 30s — silent background refresh
+  useEffect(() => {
+    const poll = () => { if (document.visibilityState === "visible") load(); };
+    const id = setInterval(poll, 30000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  // Cmd+K / Ctrl+K — open new task modal
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k" && !addOpen && !editing) {
+        e.preventDefault();
+        setForm({ title: "", notes: "", project: tab === "overview" ? (projects[0]?.id || "") : tab, priority: "medium", due_date: "" });
+        setAddOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [tab, projects, addOpen, editing]);
 
   // Project management
   const addProject = async (parentId = null) => {
@@ -418,8 +439,8 @@ function TaskApp({ user, onLogout }) {
   // Task operations
   const addTask = async () => {
     if (!form.title.trim() || !form.project) return;
-    const t = { id: genId(), user_id: uid, title: form.title, notes: form.notes, project: form.project, priority: form.priority, subtasks: form.subtasks || "[]", in_priority: false, sort_order: tasks.filter(x => !x.in_priority && x.project === form.project).length, done: false, created_at: new Date().toISOString() };
-    setForm({ title: "", notes: "", project: tab === "overview" ? (projects[0]?.id || "") : tab, priority: "medium", subtasks: "[]" });
+    const t = { id: genId(), user_id: uid, title: form.title, notes: form.notes, project: form.project, priority: form.priority, subtasks: form.subtasks || "[]", in_priority: false, sort_order: tasks.filter(x => !x.in_priority && x.project === form.project).length, done: false, created_at: new Date().toISOString(), due_date: form.due_date || null };
+    setForm({ title: "", notes: "", project: tab === "overview" ? (projects[0]?.id || "") : tab, priority: "medium", subtasks: "[]", due_date: "" });
     setAddOpen(false);
     setTasks(p => [...p, t]); setSyncing(true);
     try { await sb.insertTask(t); } catch { load(); }
@@ -428,7 +449,8 @@ function TaskApp({ user, onLogout }) {
 
   const quickAddTask = async () => {
     if (!quickAdd.trim() || tab === "overview" || !tab) return;
-    const t = { id: genId(), user_id: uid, title: quickAdd.trim(), notes: "", project: tab, priority: "medium", subtasks: "[]", in_priority: false, sort_order: tasks.filter(x => !x.in_priority && x.project === tab).length, done: false, created_at: new Date().toISOString() };
+    const blCount = tasks.filter(x => !x.in_priority && !x.done && x.project === tab).length;
+    const t = { id: genId(), user_id: uid, title: quickAdd.trim(), notes: "", project: tab, priority: "medium", subtasks: "[]", in_priority: false, sort_order: blCount, done: false, created_at: new Date().toISOString(), due_date: null };
     setQuickAdd("");
     setTasks(p => [...p, t]); setSyncing(true);
     try { await sb.insertTask(t); } catch { load(); }
@@ -490,7 +512,7 @@ function TaskApp({ user, onLogout }) {
     setSyncing(false);
   };
 
-  const save = () => { if (!editing) return; const { id, title, notes, project, priority, subtasks, time_sessions, time_spent } = editing; setEditing(null); upd(id, { title, notes, project, priority, subtasks: subtasks || "[]", time_sessions: time_sessions || "[]", time_spent: time_spent || 0 }); };
+  const save = () => { if (!editing) return; const { id, title, notes, project, priority, subtasks, time_sessions, time_spent, due_date } = editing; setEditing(null); upd(id, { title, notes, project, priority, subtasks: subtasks || "[]", time_sessions: time_sessions || "[]", time_spent: time_spent || 0, due_date: due_date || null }); };
   const toggle = (id) => { const t = tasks.find(x => x.id === id); if (t) { if (activeTimer && activeTimer.taskId === id) stopTimer(); upd(id, { done: !t.done }); } };
   const toPri = (id) => upd(id, { in_priority: true, sort_order: tasks.filter(t => t.in_priority && !t.done).length });
   const toBl = (id) => upd(id, { in_priority: false, sort_order: 999 });
@@ -506,7 +528,8 @@ function TaskApp({ user, onLogout }) {
     const tgt = up.find(t => t.id === tid);
     if (tgt) {
       const d = up.find(t => t.id === dragId); d.sort_order = tgt.sort_order - 0.5;
-      const s = up.filter(t => t.in_priority === inP && !t.done).sort((a, b) => a.sort_order - b.sort_order);
+      const filtIds = new Set(filt.map(x => x.id)); filtIds.add(dragId);
+      const s = up.filter(t => t.in_priority === inP && !t.done && filtIds.has(t.id)).sort((a, b) => a.sort_order - b.sort_order);
       const batch = [];
       s.forEach((t, i) => { const u = up.find(x => x.id === t.id); if (u) { u.sort_order = i; batch.push({ id: u.id, sort_order: i, in_priority: u.in_priority }); } });
       setTasks([...up]);
@@ -516,7 +539,7 @@ function TaskApp({ user, onLogout }) {
   };
   const onDropSec = (e, sec) => {
     e.preventDefault(); if (!dragId) return;
-    const inP = sec === "priority"; const mx = tasks.filter(t => t.in_priority === inP && !t.done && t.id !== dragId).length;
+    const inP = sec === "priority"; const mx = filt.filter(t => t.in_priority === inP && !t.done && t.id !== dragId).length;
     setTasks(p => p.map(t => t.id === dragId ? { ...t, in_priority: inP, sort_order: mx } : t));
     upd(dragId, { in_priority: inP, sort_order: mx }); setDragId(null); setOverId(null);
   };
@@ -604,7 +627,7 @@ function TaskApp({ user, onLogout }) {
     <div style={{ minHeight: "100vh", background: BG, color: T1, fontFamily: "'Satoshi', 'Helvetica Neue', sans-serif", display: "flex" }}>
       <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
       <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet" />
-      <style>{`*{box-sizing:border-box}::selection{background:${AM}}input:focus,textarea:focus,select:focus{outline:none;border-color:${AC}!important}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}.task-card{animation:fadeIn .25s ease both}.task-card:hover .grip-handle{opacity:1}.grip-handle{opacity:0;transition:opacity .15s}@media(max-width:640px){.grip-handle{opacity:1!important}.action-btn{opacity:1!important}}.action-btn{opacity:0;transition:all .15s}.task-card:hover .action-btn{opacity:1}.sb{transition:all .15s}.sb:hover{background:${AL};color:${AC}}.modal-content{animation:modalIn .2s ease both}input,textarea,select{font-family:'Satoshi',sans-serif;font-size:16px!important}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${BD};border-radius:3px}.sidebar-overlay{display:none}@media(max-width:768px){.sidebar-overlay{display:block;position:fixed;inset:0;background:rgba(26,23,21,.3);z-index:49}}`}</style>
+      <style>{`*{box-sizing:border-box}::selection{background:${AM}}input:focus,textarea:focus,select:focus{outline:none;border-color:${AC}!important}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}.task-card{animation:fadeIn .25s ease both}.task-card:hover .grip-handle{opacity:1}.grip-handle{opacity:0;transition:opacity .15s}@media(max-width:640px){.grip-handle{opacity:1!important}.action-btn{opacity:1!important;min-width:44px!important;min-height:44px!important;width:44px!important;height:44px!important}}.action-btn{opacity:0;transition:all .15s}.task-card:hover .action-btn{opacity:1}.sb{transition:all .15s}.sb:hover{background:${AL};color:${AC}}.modal-content{animation:modalIn .2s ease both}input,textarea,select{font-family:'Satoshi',sans-serif;font-size:16px!important}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${BD};border-radius:3px}.sidebar-overlay{display:none}@media(max-width:768px){.sidebar-overlay{display:block;position:fixed;inset:0;background:rgba(26,23,21,.3);z-index:49}}`}</style>
 
       {/* Sidebar overlay for mobile */}
       {sidebar && isMobile && <div className="sidebar-overlay" onClick={() => setSidebar(false)} />}
@@ -799,6 +822,8 @@ function TaskApp({ user, onLogout }) {
           style={inp} placeholder="What needs to be done?" />
         <Lbl>Notes</Lbl>
         <textarea id="add-notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Additional details..." />
+        <Lbl>Complete by</Lbl>
+        <input type="date" value={form.due_date || ""} onChange={e => setForm({ ...form, due_date: e.target.value })} style={inp} />
         <Lbl>Project</Lbl>
         <select value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} style={inp}>{activeProjects.map(p => <option key={p.id} value={p.id}>{p.parent_id ? `  ↳ ${p.name}` : p.name}</option>)}</select>
         <Lbl>Priority</Lbl>
@@ -811,6 +836,7 @@ function TaskApp({ user, onLogout }) {
         <div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 24 }}>Edit task</div>
         <Lbl>Title</Lbl><input value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} style={inp} />
         <Lbl>Notes</Lbl><textarea value={editing.notes} onChange={e => setEditing({ ...editing, notes: e.target.value })} style={{ ...inp, minHeight: 60, resize: "vertical" }} />
+        <Lbl>Complete by</Lbl><input type="date" value={editing.due_date || ""} onChange={e => setEditing({ ...editing, due_date: e.target.value || null })} style={inp} />
         <Lbl>Project</Lbl><select value={editing.project} onChange={e => setEditing({ ...editing, project: e.target.value })} style={inp}>{activeProjects.map(p => <option key={p.id} value={p.id}>{p.parent_id ? `  ↳ ${p.name}` : p.name}</option>)}</select>
         <Lbl>Priority</Lbl><div style={{ display: "flex", gap: 8, marginBottom: 20 }}>{["high", "medium", "low"].map(p => <button key={p} onClick={() => setEditing({ ...editing, priority: p })} style={pbtn(editing.priority === p, p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div>
         <Lbl>Subtasks</Lbl>
@@ -1024,6 +1050,7 @@ function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggl
         <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: 10.5, fontWeight: 600, color: pc[t.priority], background: pb[t.priority], padding: "2px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: ".06em" }}>{t.priority}</span>
           {showProj && <span style={{ fontSize: 10.5, fontWeight: 600, color: T3, background: "#F5F3F0", padding: "2px 8px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><span style={{ display: "flex" }}>{PIcon(T3)}</span> {projName(t.project)}</span>}
+          {t.due_date && !isDone && <DueDateBadge date={t.due_date} />}
           {isTimerActive && <span style={{ fontSize: 10.5, fontWeight: 700, color: AC, background: AL, padding: "2px 8px", borderRadius: 4, fontVariantNumeric: "tabular-nums", animation: "fadeIn .3s ease" }}>{formatTimer(activeTimer.startedAt)}</span>}
           {timeSpent > 0 && !isTimerActive && <span style={{ fontSize: 10.5, fontWeight: 500, color: T2, background: "#F5F3F0", padding: "2px 8px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 3 }}><IC.clock /> {timeSpent >= 60 ? `${Math.floor(timeSpent / 60)}h ${timeSpent % 60}m` : `${timeSpent}m`}</span>}
         </div>
@@ -1035,6 +1062,16 @@ function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggl
       </div>}
     </div>
   );
+}
+
+function DueDateBadge({ date }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = date < today;
+  const isToday = date === today;
+  const color = overdue ? "#C0392B" : isToday ? "#C8922A" : T2;
+  const bg = overdue ? "#FFF5F3" : isToday ? "#FFF8EC" : "#F5F3F0";
+  const label = new Date(date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return <span style={{ fontSize: 10.5, fontWeight: 600, color, background: bg, padding: "2px 8px", borderRadius: 4 }}>{overdue ? "! " : ""}{label}</span>;
 }
 
 function Abtn({ children, onClick, t: title }) {
