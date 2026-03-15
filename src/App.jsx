@@ -578,7 +578,7 @@ function TaskApp({ user, onLogout }) {
   const createCombined = async () => {
     const first = combineQueue[0];
     try {
-      const newTask = await sb.insertTask({ user_id: uid, title: combineResult.title, notes: combineResult.notes || "", project: first.project, priority: first.priority, in_priority: combineQueue.some(t => t.in_priority), sort_order: 0, done: false, subtasks: "[]", time_sessions: "[]", time_spent: 0, due_date: null });
+      const newTask = await sb.insertTask({ id: crypto.randomUUID(), user_id: uid, title: combineResult.title, notes: combineResult.notes || "", project: first.project, priority: first.priority, in_priority: combineQueue.some(t => t.in_priority), sort_order: 0, done: false, subtasks: "[]", time_sessions: "[]", time_spent: 0, due_date: null });
       for (const t of combineQueue) await sb.deleteTask(t.id);
       const ids = new Set(combineQueue.map(t => t.id));
       setTasks(prev => [newTask[0], ...prev.filter(t => !ids.has(t.id))]);
