@@ -1096,8 +1096,9 @@ function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggl
   const timeSpent = parseInt(t.time_spent) || 0;
   return (
     <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} onDoubleClick={() => { if (!isDone && window.innerWidth > 640) onEdit(t); }} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: isTimerActive ? "#FFF8F2" : overId === t.id ? AL : dragId === t.id ? "#F5F2EE" : W, border: `1px solid ${isTimerActive ? AC : overId === t.id ? AM : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .35 : 1, transform: dragId === t.id ? "rotate(1.5deg)" : "rotate(0deg)",
-          marginLeft: dragId === t.id ? "8%" : 0,
-          marginRight: dragId === t.id ? "8%" : 0, boxShadow: dragId === t.id ? "0 8px 24px rgba(0,0,0,.12)" : "none", transition: "transform .2s cubic-bezier(.2,.8,.4,1), box-shadow .2s ease, opacity .15s, background .15s", animationDelay: `${i * .03}s` }}>
+          marginLeft: dragId === t.id ? "28%" : 0,
+          marginRight: dragId === t.id ? "28%" : 0,
+          padding: dragId === t.id ? "8px 12px" : "12px 14px", boxShadow: dragId === t.id ? "0 8px 24px rgba(0,0,0,.12)" : "none", transition: "transform .2s cubic-bezier(.2,.8,.4,1), box-shadow .2s ease, opacity .15s, background .15s", animationDelay: `${i * .03}s` }}>
       {!isDone && <div className="grip-handle" style={{ paddingTop: 5, cursor: "grab" }}><IC.grip /></div>}
       <button onClick={() => onToggle(t.id)} style={{ width: 24, height: 24, minWidth: 24, marginTop: 0, border: `1.5px solid ${isDone ? "#8CB88C" : pc[t.priority]}`, borderRadius: 6, background: isDone ? "#8CB88C" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", padding: 0 }}>{isDone && <IC.check />}</button>
       <div style={{ flex: 1, minWidth: 0 }}>
