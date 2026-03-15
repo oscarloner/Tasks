@@ -536,8 +536,11 @@ function TaskApp({ user, onLogout }) {
     setDragId(id); e.dataTransfer.effectAllowed = "move";
     const task = tasks.find(t => t.id === id);
     const ghost = document.createElement("div");
-    ghost.style.cssText = `position:fixed;top:-1000px;left:-1000px;background:#fff;border:1px solid #EDE9E3;border-radius:10px;padding:10px 14px;font-family:'Satoshi',sans-serif;font-size:13.5px;font-weight:500;color:#1A1715;max-width:220px;box-shadow:0 8px 24px rgba(0,0,0,.15);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-    ghost.textContent = task?.title || "";
+    const pc = { high: "#D4600A", medium: "#C8922A", low: "#B5AFA9" };
+    const pb = { high: "#FFF3EC", medium: "#FFF8EC", low: "#F5F3F0" };
+    const pri = task?.priority || "medium";
+    ghost.style.cssText = `position:fixed;top:-1000px;left:-1000px;background:#fff;border:1px solid #EDE9E3;border-radius:10px;padding:10px 14px;font-family:'Satoshi',sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.15);max-width:240px;min-width:160px;`;
+    ghost.innerHTML = `<div style="font-size:13.5px;font-weight:500;color:#1A1715;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${task?.title || ""}</div><span style="font-size:10.5px;font-weight:600;color:${pc[pri]};background:${pb[pri]};padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.06em;">${pri}</span>`;
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2);
     setTimeout(() => document.body.removeChild(ghost), 0);
@@ -1104,7 +1107,7 @@ function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggl
   const isTimerActive = activeTimer && activeTimer.taskId === t.id;
   const timeSpent = parseInt(t.time_spent) || 0;
   return (
-    <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} onDoubleClick={() => { if (!isDone && window.innerWidth > 640) onEdit(t); }} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: isTimerActive ? "#FFF8F2" : overId === t.id ? AL : W, border: `1px solid ${isTimerActive ? AC : overId === t.id ? AM : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .35 : 1, transition: "opacity .15s, background .15s", animationDelay: `${i * .03}s` }}>
+    <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} onDoubleClick={() => { if (!isDone && window.innerWidth > 640) onEdit(t); }} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: isTimerActive ? "#FFF8F2" : W, border: `1px solid ${isTimerActive ? AC : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .35 : 1, transition: "opacity .15s, background .15s", animationDelay: `${i * .03}s` }}>
       {!isDone && <div className="grip-handle" style={{ paddingTop: 5, cursor: "grab" }}><IC.grip /></div>}
       <button onClick={() => onToggle(t.id)} style={{ width: 24, height: 24, minWidth: 24, marginTop: 0, border: `1.5px solid ${isDone ? "#8CB88C" : pc[t.priority]}`, borderRadius: 6, background: isDone ? "#8CB88C" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", padding: 0 }}>{isDone && <IC.check />}</button>
       <div style={{ flex: 1, minWidth: 0 }}>
