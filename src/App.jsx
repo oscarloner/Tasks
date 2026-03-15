@@ -20,6 +20,7 @@ const sb = {
   }),
   async query(method, path, body) {
     const opts = { method, headers: sb.headers() };
+    if (method === "GET") opts.cache = "no-store";
     if (body) opts.body = JSON.stringify(body);
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, opts);
     if (!res.ok) { const e = await res.text(); throw new Error(`${method} ${path}: ${res.status} ${e}`); }
@@ -449,8 +450,8 @@ function TaskApp({ user, onLogout }) {
 
   const quickAddTask = async () => {
     if (!quickAdd.trim() || tab === "overview" || !tab) return;
-    const blCount = tasks.filter(x => !x.in_priority && !x.done && x.project === tab).length;
-    const t = { id: genId(), user_id: uid, title: quickAdd.trim(), notes: "", project: tab, priority: "medium", subtasks: "[]", in_priority: false, sort_order: blCount, done: false, created_at: new Date().toISOString(), due_date: null };
+    const priCount = tasks.filter(x => x.in_priority && !x.done).length;
+    const t = { id: genId(), user_id: uid, title: quickAdd.trim(), notes: "", project: tab, priority: "medium", subtasks: "[]", in_priority: true, sort_order: priCount, done: false, created_at: new Date().toISOString(), due_date: null };
     setQuickAdd("");
     setTasks(p => [...p, t]); setSyncing(true);
     try { await sb.insertTask(t); } catch { load(); }
@@ -522,6 +523,7 @@ function TaskApp({ user, onLogout }) {
   const onDO = (e, id) => { e.preventDefault(); if (id !== dragId) setOverId(id); };
   const onDrop = (e, tid, sec) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!dragId || dragId === tid) { setDragId(null); setOverId(null); return; }
     const inP = sec === "priority";
     let up = tasks.map(t => t.id === dragId ? { ...t, in_priority: inP } : t);
@@ -627,7 +629,7 @@ function TaskApp({ user, onLogout }) {
     <div style={{ minHeight: "100vh", background: BG, color: T1, fontFamily: "'Satoshi', 'Helvetica Neue', sans-serif", display: "flex" }}>
       <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
       <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet" />
-      <style>{`*{box-sizing:border-box}::selection{background:${AM}}input:focus,textarea:focus,select:focus{outline:none;border-color:${AC}!important}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}.task-card{animation:fadeIn .25s ease both}.task-card:hover .grip-handle{opacity:1}.grip-handle{opacity:0;transition:opacity .15s}@media(max-width:640px){.grip-handle{opacity:1!important}.action-btn{opacity:1!important;min-width:44px!important;min-height:44px!important;width:44px!important;height:44px!important}}.action-btn{opacity:0;transition:all .15s}.task-card:hover .action-btn{opacity:1}.sb{transition:all .15s}.sb:hover{background:${AL};color:${AC}}.modal-content{animation:modalIn .2s ease both}input,textarea,select{font-family:'Satoshi',sans-serif;font-size:16px!important}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${BD};border-radius:3px}.sidebar-overlay{display:none}@media(max-width:768px){.sidebar-overlay{display:block;position:fixed;inset:0;background:rgba(26,23,21,.3);z-index:49}}`}</style>
+      <style>{`*{box-sizing:border-box}::selection{background:${AM}}input:focus,textarea:focus,select:focus{outline:none;border-color:${AC}!important}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}.task-card{animation:fadeIn .25s ease both}.task-card:hover .grip-handle{opacity:1}.grip-handle{opacity:0;transition:opacity .15s}@media(max-width:640px){.grip-handle{display:none!important}.action-btn{opacity:1!important;min-width:36px!important;min-height:36px!important;width:36px!important;height:36px!important}}.action-btn{opacity:0;transition:all .15s}.task-card:hover .action-btn{opacity:1}.sb{transition:all .15s}.sb:hover{background:${AL};color:${AC}}.modal-content{animation:modalIn .2s ease both}input,textarea,select{font-family:'Satoshi',sans-serif;font-size:16px!important}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${BD};border-radius:3px}.sidebar-overlay{display:none}@media(max-width:768px){.sidebar-overlay{display:block;position:fixed;inset:0;background:rgba(26,23,21,.3);z-index:49}}`}</style>
 
       {/* Sidebar overlay for mobile */}
       {sidebar && isMobile && <div className="sidebar-overlay" onClick={() => setSidebar(false)} />}
@@ -1025,7 +1027,7 @@ function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggl
   const isTimerActive = activeTimer && activeTimer.taskId === t.id;
   const timeSpent = parseInt(t.time_spent) || 0;
   return (
-    <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: isTimerActive ? "#FFF8F2" : overId === t.id ? AL : dragId === t.id ? "#F5F2EE" : W, border: `1px solid ${isTimerActive ? AC : overId === t.id ? AM : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .4 : 1, transition: "all .15s", animationDelay: `${i * .03}s` }}>
+    <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} onDoubleClick={() => { if (!isDone && window.innerWidth > 640) onEdit(t); }} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: isTimerActive ? "#FFF8F2" : overId === t.id ? AL : dragId === t.id ? "#F5F2EE" : W, border: `1px solid ${isTimerActive ? AC : overId === t.id ? AM : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .4 : 1, transition: "all .15s", animationDelay: `${i * .03}s` }}>
       {!isDone && <div className="grip-handle" style={{ paddingTop: 5, cursor: "grab" }}><IC.grip /></div>}
       <button onClick={() => onToggle(t.id)} style={{ width: 24, height: 24, minWidth: 24, marginTop: 0, border: `1.5px solid ${isDone ? "#8CB88C" : pc[t.priority]}`, borderRadius: 6, background: isDone ? "#8CB88C" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", padding: 0 }}>{isDone && <IC.check />}</button>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -1094,7 +1096,7 @@ function Modal({ children, onClose }) {
   ><div className="modal-content"
     onMouseDown={e => { mouseDownInside.current = true; }}
     onClick={e => e.stopPropagation()}
-    style={{ background: W, border: `1px solid ${BD}`, borderRadius: mob ? "16px 16px 0 0" : 16, padding: mob ? "24px 20px calc(32px + env(safe-area-inset-bottom, 0px))" : 30, width: "100%", maxWidth: mob ? "100%" : 420, maxHeight: mob ? "80vh" : "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(26,23,21,.12)", WebkitOverflowScrolling: "touch" }}>{children}</div></div>;
+    style={{ background: W, border: `1px solid ${BD}`, borderRadius: mob ? "16px 16px 0 0" : 16, padding: mob ? "24px 20px calc(32px + env(safe-area-inset-bottom, 0px))" : 30, width: "100%", maxWidth: mob ? "100%" : 420, maxHeight: mob ? "80vh" : "90vh", overflow: "auto", overflowX: "hidden", touchAction: "pan-y", boxShadow: "0 20px 60px rgba(26,23,21,.12)", WebkitOverflowScrolling: "touch" }}>{children}</div></div>;
 }
 
 function Lbl({ children }) { return <div style={{ fontSize: 11, fontWeight: 600, color: T3, marginBottom: 6, textTransform: "uppercase", letterSpacing: ".08em" }}>{children}</div>; }
