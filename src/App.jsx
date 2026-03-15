@@ -568,21 +568,11 @@ function TaskApp({ user, onLogout }) {
     setDragId(null); setOverId(null);
   };
   const callCombineAPI = async () => {
-    const key = import.meta.env.VITE_ANTHROPIC_API_KEY;
-    if (!key) { alert("Add VITE_ANTHROPIC_API_KEY to .env.local and restart the dev server."); return; }
     setCombining(true);
     try {
-      const content = combineQueue.map((t, i) =>
-        `Task ${i + 1}: ${t.title}${t.notes ? `\nNotes: ${t.notes}` : ""}`
-      ).join("\n\n");
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true", "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 256, messages: [{ role: "user", content: `Kombiner disse tasks til én. Svar KUN med JSON: {"title":"...","notes":"..."}\n\n${content}` }] }),
-      });
-      const data = await res.json();
-      setCombineResult(JSON.parse(data.content[0].text.trim()));
-    } catch (err) { alert("Combine failed: " + err.message); }
+      const result = await sb.callFn("combine-tasks", { tasks: combineQueue.map(t => ({ title: t.title, notes: t.notes })) });
+      setCombineResult(result);
+    } catch (err) { alert("Combine feilet: " + err.message); }
     setCombining(false);
   };
   const createCombined = async () => {
