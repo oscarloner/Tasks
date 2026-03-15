@@ -550,13 +550,13 @@ function TaskApp({ user, onLogout }) {
       setTasks([...up]);
       (async () => { setSyncing(true); for (const b of batch) { try { await sb.updateTask(b.id, { sort_order: b.sort_order, in_priority: b.in_priority }); } catch {} } setSyncing(false); })();
     }
-    setDragId(null); setOverId(null);
+    setDragId(null); setOverId(null); setDragging(false);
   };
   const onDropSec = (e, sec) => {
     e.preventDefault(); if (!dragId) return;
     const inP = sec === "priority"; const mx = filt.filter(t => t.in_priority === inP && !t.done && t.id !== dragId).length;
     setTasks(p => p.map(t => t.id === dragId ? { ...t, in_priority: inP, sort_order: mx } : t));
-    upd(dragId, { in_priority: inP, sort_order: mx }); setDragId(null); setOverId(null);
+    upd(dragId, { in_priority: inP, sort_order: mx }); setDragId(null); setOverId(null); setDragging(false);
   };
 
   // Combine tasks (AI-powered)
@@ -1095,7 +1095,9 @@ function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggl
   const isTimerActive = activeTimer && activeTimer.taskId === t.id;
   const timeSpent = parseInt(t.time_spent) || 0;
   return (
-    <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} onDoubleClick={() => { if (!isDone && window.innerWidth > 640) onEdit(t); }} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: isTimerActive ? "#FFF8F2" : overId === t.id ? AL : dragId === t.id ? "#F5F2EE" : W, border: `1px solid ${isTimerActive ? AC : overId === t.id ? AM : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .35 : 1, transform: dragId === t.id ? "scale(0.85) rotate(1.5deg)" : "scale(1) rotate(0deg)", boxShadow: dragId === t.id ? "0 8px 24px rgba(0,0,0,.12)" : "none", transition: "transform .2s cubic-bezier(.2,.8,.4,1), box-shadow .2s ease, opacity .15s, background .15s", animationDelay: `${i * .03}s` }}>
+    <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} onDoubleClick={() => { if (!isDone && window.innerWidth > 640) onEdit(t); }} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: isTimerActive ? "#FFF8F2" : overId === t.id ? AL : dragId === t.id ? "#F5F2EE" : W, border: `1px solid ${isTimerActive ? AC : overId === t.id ? AM : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .35 : 1, transform: dragId === t.id ? "rotate(1.5deg)" : "rotate(0deg)",
+          marginLeft: dragId === t.id ? "8%" : 0,
+          marginRight: dragId === t.id ? "8%" : 0, boxShadow: dragId === t.id ? "0 8px 24px rgba(0,0,0,.12)" : "none", transition: "transform .2s cubic-bezier(.2,.8,.4,1), box-shadow .2s ease, opacity .15s, background .15s", animationDelay: `${i * .03}s` }}>
       {!isDone && <div className="grip-handle" style={{ paddingTop: 5, cursor: "grab" }}><IC.grip /></div>}
       <button onClick={() => onToggle(t.id)} style={{ width: 24, height: 24, minWidth: 24, marginTop: 0, border: `1.5px solid ${isDone ? "#8CB88C" : pc[t.priority]}`, borderRadius: 6, background: isDone ? "#8CB88C" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", padding: 0 }}>{isDone && <IC.check />}</button>
       <div style={{ flex: 1, minWidth: 0 }}>
