@@ -540,7 +540,8 @@ function TaskApp({ user, onLogout }) {
     const pb = { high: "#FFF3EC", medium: "#FFF8EC", low: "#F5F3F0" };
     const pri = task?.priority || "medium";
     ghost.style.cssText = `position:fixed;top:-1000px;left:-1000px;background:#fff;border:1px solid #EDE9E3;border-radius:10px;padding:10px 14px;font-family:'Satoshi',sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.15);max-width:240px;min-width:160px;`;
-    ghost.innerHTML = `<div style="font-size:13.5px;font-weight:500;color:#1A1715;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${task?.title || ""}</div><span style="font-size:10.5px;font-weight:600;color:${pc[pri]};background:${pb[pri]};padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.06em;">${pri}</span>`;
+    const proj = projects.find(p => p.id === task?.project);
+    ghost.innerHTML = `<div style="font-size:13.5px;font-weight:500;color:#1A1715;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${task?.title || ""}</div><div style="display:flex;gap:6px;flex-wrap:wrap;"><span style="font-size:10.5px;font-weight:600;color:${pc[pri]};background:${pb[pri]};padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.06em;">${pri}</span>${proj ? `<span style="font-size:10.5px;font-weight:600;color:#8C8580;background:#F5F3F0;padding:2px 8px;border-radius:4px;">${proj.name}</span>` : ""}</div>`;
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2);
     setTimeout(() => document.body.removeChild(ghost), 0);
