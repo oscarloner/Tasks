@@ -317,6 +317,10 @@ function TaskApp({ user, onLogout }) {
   const [activeTimer, setActiveTimer] = useState(null); // { taskId, startedAt }
   const [timerTick, setTimerTick] = useState(0);
   const [showArchived, setShowArchived] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [combineQueue, setCombineQueue] = useState([]);
+  const [combining, setCombining] = useState(false);
+  const [combineResult, setCombineResult] = useState(null);
   const activeTimerRef = useRef(null);
   const tasksRef = useRef(tasks);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
@@ -331,6 +335,15 @@ function TaskApp({ user, onLogout }) {
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // Track global drag state for combine panel
+  useEffect(() => {
+    const onStart = () => setDragging(true);
+    const onEnd = () => setDragging(false);
+    document.addEventListener("dragstart", onStart);
+    document.addEventListener("dragend", onEnd);
+    return () => { document.removeEventListener("dragstart", onStart); document.removeEventListener("dragend", onEnd); };
   }, []);
 
   const selectTab = (id) => {
@@ -544,6 +557,43 @@ function TaskApp({ user, onLogout }) {
     const inP = sec === "priority"; const mx = filt.filter(t => t.in_priority === inP && !t.done && t.id !== dragId).length;
     setTasks(p => p.map(t => t.id === dragId ? { ...t, in_priority: inP, sort_order: mx } : t));
     upd(dragId, { in_priority: inP, sort_order: mx }); setDragId(null); setOverId(null);
+  };
+
+  // Combine tasks (AI-powered)
+  const onDropCombine = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!dragId) return;
+    const task = tasks.find(t => t.id === dragId);
+    if (task && !combineQueue.find(t => t.id === dragId)) setCombineQueue(q => [...q, task]);
+    setDragId(null); setOverId(null);
+  };
+  const callCombineAPI = async () => {
+    const key = import.meta.env.VITE_ANTHROPIC_API_KEY;
+    if (!key) { alert("Add VITE_ANTHROPIC_API_KEY to .env.local and restart the dev server."); return; }
+    setCombining(true);
+    try {
+      const content = combineQueue.map((t, i) =>
+        `Task ${i + 1}: ${t.title}${t.notes ? `\nNotes: ${t.notes}` : ""}`
+      ).join("\n\n");
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true", "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 256, messages: [{ role: "user", content: `Kombiner disse tasks til én. Svar KUN med JSON: {"title":"...","notes":"..."}\n\n${content}` }] }),
+      });
+      const data = await res.json();
+      setCombineResult(JSON.parse(data.content[0].text.trim()));
+    } catch (err) { alert("Combine failed: " + err.message); }
+    setCombining(false);
+  };
+  const createCombined = async () => {
+    const first = combineQueue[0];
+    try {
+      const newTask = await sb.insertTask({ user_id: uid, title: combineResult.title, notes: combineResult.notes || "", project: first.project, priority: first.priority, in_priority: combineQueue.some(t => t.in_priority), sort_order: 0, done: false, subtasks: "[]", time_sessions: "[]", time_spent: 0, due_date: null });
+      for (const t of combineQueue) await sb.deleteTask(t.id);
+      const ids = new Set(combineQueue.map(t => t.id));
+      setTasks(prev => [newTask[0], ...prev.filter(t => !ids.has(t.id))]);
+    } catch (err) { alert("Could not create task: " + err.message); }
+    setCombineQueue([]); setCombineResult(null);
   };
 
   // Focus time (AI-powered)
@@ -927,6 +977,39 @@ function TaskApp({ user, onLogout }) {
           <button onClick={() => { removeProject(editingProj.id); setEditingProj(null); }} style={{ padding: "11px 18px", border: "1.5px solid #F0D5D0", borderRadius: 10, background: "#FFF5F3", color: "#C0392B", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, fontFamily: "'Satoshi',sans-serif" }}><IC.trash /></button>
         </div>
       </Modal>}
+
+      {/* Combine panel */}
+      {(dragging || combineQueue.length > 0) && (
+        <div style={{ position: "fixed", right: 0, top: 0, height: "100vh", width: 272, background: W, boxShadow: "-4px 0 24px rgba(0,0,0,.10)", display: "flex", flexDirection: "column", padding: 24, zIndex: 200, gap: 12, fontFamily: "'Satoshi',sans-serif" }}>
+          <div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 20, color: T1, marginBottom: 4 }}>Kombiner tasks</div>
+          <div onDragOver={e => e.preventDefault()} onDrop={onDropCombine} style={{ border: `2px dashed ${dragging ? AC : BD}`, borderRadius: 10, padding: "18px 12px", textAlign: "center", color: dragging ? AC : T3, fontSize: 13, fontWeight: 500, background: dragging ? AL : "transparent", transition: "all .15s", minHeight: 64 }}>
+            {dragging ? "Slipp task her" : "Dra tasks hit"}
+          </div>
+          {combineQueue.map(t => (
+            <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 10px", background: BG, borderRadius: 8, border: `1px solid ${BD}` }}>
+              <span style={{ fontSize: 13, color: T1, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
+              <button onClick={() => { setCombineQueue(q => q.filter(x => x.id !== t.id)); setCombineResult(null); }} style={{ background: "none", border: "none", color: T3, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 2, flexShrink: 0 }}>×</button>
+            </div>
+          ))}
+          {combineResult && (
+            <div style={{ background: AL, borderRadius: 10, padding: 14, border: `1px solid ${AM}` }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: AC, marginBottom: 6, textTransform: "uppercase", letterSpacing: ".06em" }}>Forslag</div>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: T1, marginBottom: combineResult.notes ? 6 : 0 }}>{combineResult.title}</div>
+              {combineResult.notes && <div style={{ fontSize: 12, color: T2, lineHeight: 1.45 }}>{combineResult.notes}</div>}
+            </div>
+          )}
+          <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+            {combineResult ? (
+              <button onClick={createCombined} style={primBtn}>Opprett kombinert task</button>
+            ) : (
+              <button disabled={combineQueue.length < 2 || combining} onClick={callCombineAPI} style={{ ...primBtn, opacity: combineQueue.length < 2 || combining ? 0.45 : 1, cursor: combineQueue.length < 2 || combining ? "default" : "pointer" }}>
+                {combining ? "Kombinerer..." : "Kombiner"}
+              </button>
+            )}
+            <button onClick={() => { setCombineQueue([]); setCombineResult(null); }} style={{ width: "100%", padding: 10, border: `1.5px solid ${BD}`, borderRadius: 10, background: "transparent", color: T2, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "'Satoshi',sans-serif" }}>Avbryt</button>
+          </div>
+        </div>
+      )}
 
       {/* Focus time modal */}
       {timeOpen && <Modal onClose={() => setTimeOpen(false)}><div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 22, color: T1, marginBottom: 4 }}>Focus time</div><div style={{ fontSize: 13, color: T2, marginBottom: 22, fontWeight: 500 }}>How long can you work? I'll pick your top tasks.</div><div style={{ display: "flex", gap: 8, marginBottom: 18 }}>{[15, 30, 60, 120].map(m => <button key={m} onClick={() => setMins(m)} style={{ flex: 1, padding: "11px 8px", border: mins === m ? `2px solid ${AC}` : `1.5px solid ${BD}`, borderRadius: 10, background: mins === m ? AL : W, color: mins === m ? AC : T2, cursor: "pointer", fontSize: 13.5, fontWeight: 600, fontFamily: "'Satoshi',sans-serif" }}>{m < 60 ? `${m}m` : `${m / 60}h`}</button>)}</div><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 22 }}><span style={{ fontSize: 13, color: T3, fontWeight: 500 }}>Custom:</span><input type="number" value={mins} onChange={e => setMins(Math.max(5, parseInt(e.target.value) || 0))} style={{ ...inp, width: 72, marginBottom: 0, textAlign: "center" }} /><span style={{ fontSize: 13, color: T3, fontWeight: 500 }}>minutes</span></div><button onClick={suggest} style={primBtn}><span style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}><IC.zap /> Show me what to work on</span></button></Modal>}
