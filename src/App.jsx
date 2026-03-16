@@ -698,7 +698,7 @@ function TaskApp({ user, onLogout }) {
   // Derived
   const activeProjects = projects.filter(p => !p.archived);
   const archivedProjects = projects.filter(p => p.archived);
-  const topLevel = activeProjects.filter(p => !p.parent_id);
+  const topLevel = activeProjects.filter(p => !p.parent_id && p.name !== 'Ukategorisert');
   const getChildren = (parentId) => activeProjects.filter(p => p.parent_id === parentId);
   const allProjects = [{ id: "overview", name: "Overview", icon: "overview" }, ...activeProjects];
   const childIds = (id) => [id, ...activeProjects.filter(p => p.parent_id === id).map(p => p.id)];
