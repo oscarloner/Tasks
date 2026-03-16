@@ -1025,7 +1025,7 @@ function TaskApp({ user, onLogout }) {
       {/* Action dock */}
       {(dragging || combineQueue.length > 0) && (
         <div
-          onDragOver={e => { e.preventDefault(); setOverCombine(true); }}
+          onDragOver={e => { e.preventDefault(); setOverCombine(true); setOverId(null); }}
           onDragLeave={() => setOverCombine(false)}
           onDrop={e => { setOverCombine(false); onDropCombine(e); }}
           style={{ position: "fixed", bottom: 24, left: "50%", transform: `translateX(-50%) scale(${overCombine ? 1.02 : 1})`, width: "min(680px, calc(100vw - 32px))", background: overCombine ? AL : dragging ? BG : W, border: `2px solid ${overCombine ? AM : dragging ? BD : BD}`, borderRadius: 18, boxShadow: overCombine ? `0 8px 40px rgba(212,96,10,.1)` : "0 8px 40px rgba(0,0,0,.08)", padding: "14px 16px", zIndex: 200, fontFamily: "'Satoshi',sans-serif", transition: "all .15s", display: "flex", alignItems: "center", gap: 8, minHeight: 56 }}>
