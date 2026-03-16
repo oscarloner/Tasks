@@ -1028,7 +1028,7 @@ function TaskApp({ user, onLogout }) {
           onDragOver={e => { e.preventDefault(); setOverCombine(true); }}
           onDragLeave={() => setOverCombine(false)}
           onDrop={e => { setOverCombine(false); onDropCombine(e); }}
-          style={{ position: "fixed", bottom: 24, left: "50%", transform: `translateX(-50%) scale(${overCombine ? 1.02 : 1})`, width: "min(680px, calc(100vw - 32px))", background: overCombine ? AM : dragging ? AL : W, border: `2px solid ${overCombine ? AC : dragging ? AC : BD}`, borderRadius: 18, boxShadow: overCombine ? `0 8px 48px rgba(212,96,10,.28)` : dragging ? `0 8px 40px rgba(212,96,10,.15)` : "0 8px 40px rgba(0,0,0,.1)", padding: "14px 16px", zIndex: 200, fontFamily: "'Satoshi',sans-serif", transition: "all .15s", display: "flex", alignItems: "center", gap: 8, minHeight: 56 }}>
+          style={{ position: "fixed", bottom: 24, left: "50%", transform: `translateX(-50%) scale(${overCombine ? 1.02 : 1})`, width: "min(680px, calc(100vw - 32px))", background: overCombine ? AL : dragging ? BG : W, border: `2px solid ${overCombine ? AM : dragging ? BD : BD}`, borderRadius: 18, boxShadow: overCombine ? `0 8px 40px rgba(212,96,10,.1)` : "0 8px 40px rgba(0,0,0,.08)", padding: "14px 16px", zIndex: 200, fontFamily: "'Satoshi',sans-serif", transition: "all .15s", display: "flex", alignItems: "center", gap: 8, minHeight: 56 }}>
           {/* Drop area / chips */}
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
             {combineQueue.length === 0
