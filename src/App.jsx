@@ -1021,31 +1021,36 @@ function TaskApp({ user, onLogout }) {
         </div>
       </Modal>}
 
-      {/* Combine panel */}
+      {/* Action dock */}
       {(dragging || combineQueue.length > 0) && (
-        <div onDragOver={e => e.preventDefault()} onDrop={onDropCombine} style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "min(520px, calc(100vw - 48px))", background: dragging ? AL : W, border: `2px solid ${dragging ? AC : BD}`, borderRadius: 14, boxShadow: "0 4px 32px rgba(0,0,0,.13)", padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", zIndex: 200, fontFamily: "'Satoshi',sans-serif", transition: "border-color .15s, background .15s" }}>
-          {combineQueue.length === 0
-            ? <span style={{ fontSize: 13, color: dragging ? AC : T3, flex: 1, fontWeight: 500 }}>{dragging ? "Slipp task her" : "Dra tasks hit for å kombinere"}</span>
-            : combineQueue.map(t => (
-                <span key={t.id} style={{ display: "flex", alignItems: "center", gap: 4, background: BG, border: `1px solid ${BD}`, borderRadius: 20, padding: "4px 10px", fontSize: 13, color: T1, fontWeight: 500 }}>
-                  {t.title}
-                  <button onClick={() => { setCombineQueue(q => q.filter(x => x.id !== t.id)); setCombineResult(null); }} style={{ background: "none", border: "none", color: T3, cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 0 0 2px", display: "flex" }}>×</button>
-                </span>
-              ))
-          }
-          {combineResult && (
-            <span style={{ fontSize: 13, color: AC, fontWeight: 600 }}>→ {combineResult.title}</span>
-          )}
-          <div style={{ marginLeft: "auto", display: "flex", gap: 6, flexShrink: 0 }}>
-            {combineResult ? (
-              <button onClick={createCombined} style={{ padding: "7px 14px", border: "none", borderRadius: 8, background: T1, color: W, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "'Satoshi',sans-serif", whiteSpace: "nowrap" }}>Opprett</button>
-            ) : (
-              <button disabled={combineQueue.length < 2 || combining} onClick={callCombineAPI} style={{ padding: "7px 14px", border: "none", borderRadius: 8, background: combineQueue.length < 2 || combining ? BD : T1, color: W, cursor: combineQueue.length < 2 || combining ? "default" : "pointer", fontSize: 13, fontWeight: 600, fontFamily: "'Satoshi',sans-serif", whiteSpace: "nowrap" }}>
-                {combining ? "..." : "Kombiner"}
-              </button>
-            )}
-            <button onClick={() => { setCombineQueue([]); setCombineResult(null); }} style={{ padding: "7px 10px", border: `1.5px solid ${BD}`, borderRadius: 8, background: "transparent", color: T3, cursor: "pointer", fontSize: 15, fontWeight: 600, fontFamily: "'Satoshi',sans-serif", lineHeight: 1 }}>×</button>
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "min(680px, calc(100vw - 32px))", background: W, border: `1.5px solid ${BD}`, borderRadius: 18, boxShadow: "0 8px 40px rgba(0,0,0,.13)", padding: "14px 16px", zIndex: 200, fontFamily: "'Satoshi',sans-serif", transition: "border-color .15s" }}>
+          {/* Label */}
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: T3, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>Aksjoner</div>
+          {/* Combine zone */}
+          <div onDragOver={e => e.preventDefault()} onDrop={onDropCombine} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", background: dragging ? AL : BG, border: `1.5px dashed ${dragging ? AC : BD}`, borderRadius: 12, padding: "12px 14px", minHeight: 52, transition: "background .15s, border-color .15s" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: T3, textTransform: "uppercase", letterSpacing: ".06em", marginRight: 4, whiteSpace: "nowrap" }}>Kombiner</span>
+            {combineQueue.length === 0
+              ? <span style={{ fontSize: 13, color: dragging ? AC : T3, fontWeight: 500 }}>{dragging ? "Slipp task her" : "Dra tasks hit"}</span>
+              : combineQueue.map(t => (
+                  <span key={t.id} style={{ display: "flex", alignItems: "center", gap: 4, background: W, border: `1px solid ${BD}`, borderRadius: 20, padding: "4px 10px", fontSize: 13, color: T1, fontWeight: 500 }}>
+                    {t.title}
+                    <button onClick={() => { setCombineQueue(q => q.filter(x => x.id !== t.id)); setCombineResult(null); }} style={{ background: "none", border: "none", color: T3, cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 0 0 2px", display: "flex" }}>×</button>
+                  </span>
+                ))
+            }
+            {combineResult && <span style={{ fontSize: 13, color: AC, fontWeight: 600 }}>→ {combineResult.title}</span>}
+            <div style={{ marginLeft: "auto", display: "flex", gap: 6, flexShrink: 0 }}>
+              {combineResult ? (
+                <button onClick={createCombined} style={{ padding: "7px 16px", border: "none", borderRadius: 8, background: T1, color: W, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "'Satoshi',sans-serif" }}>Opprett</button>
+              ) : (
+                <button disabled={combineQueue.length < 2 || combining} onClick={callCombineAPI} style={{ padding: "7px 16px", border: "none", borderRadius: 8, background: combineQueue.length < 2 || combining ? BD : T1, color: W, cursor: combineQueue.length < 2 || combining ? "default" : "pointer", fontSize: 13, fontWeight: 600, fontFamily: "'Satoshi',sans-serif" }}>
+                  {combining ? "..." : "Kombiner"}
+                </button>
+              )}
+            </div>
           </div>
+          {/* Close */}
+          <button onClick={() => { setCombineQueue([]); setCombineResult(null); }} style={{ position: "absolute", top: 12, right: 14, background: "none", border: "none", color: T3, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
         </div>
       )}
 
