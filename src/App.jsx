@@ -572,14 +572,15 @@ function TaskApp({ user, onLogout }) {
     // Outer: positioned via transform (GPU-composited, no layout recalc)
     gh.style.cssText = `position:fixed;left:0;top:0;pointer-events:none;z-index:9999;will-change:transform;transform:translate(${e.clientX}px,${e.clientY}px)`;
     const card = document.createElement("div");
-    card.style.cssText = `transform:translate(-50%,-50%) scale(0.85) rotate(-5deg);opacity:0;transition:transform .3s cubic-bezier(.2,.8,.3,1.4),opacity .18s ease;background:#fff;border:1px solid #EDE9E3;border-radius:10px;padding:10px 14px;font-family:'Satoshi',sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.18);max-width:240px;min-width:160px;`;
-    card.innerHTML = `<div style="font-size:13.5px;font-weight:500;color:#1A1715;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${task?.title || ""}</div><div style="display:flex;gap:6px;flex-wrap:wrap;"><span style="font-size:10.5px;font-weight:600;color:${pc[pri]};background:${pb[pri]};padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.06em;">${pri}</span>${proj ? `<span style="font-size:10.5px;font-weight:600;color:#8C8580;background:#F5F3F0;padding:2px 8px;border-radius:4px;">${proj.name}</span>` : ""}</div>`;
+    card.style.cssText = `transform:translate(-50%,-50%) scale(0.85) rotate(-5deg);opacity:0;transition:transform .28s cubic-bezier(.2,.8,.3,1.4),opacity .15s ease;background:#fff;border:1px solid #EDE9E3;border-radius:10px;padding:9px 13px;font-family:'Satoshi',sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.12);max-width:220px;min-width:140px;`;
+    card.innerHTML = `<div style="font-size:13px;font-weight:500;color:#1A1715;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${task?.title || ""}</div><div style="display:flex;gap:5px;flex-wrap:wrap;"><span style="font-size:10px;font-weight:600;color:${pc[pri]};background:${pb[pri]};padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.06em;">${pri}</span>${proj ? `<span style="font-size:10px;font-weight:600;color:#8C8580;background:#F5F3F0;padding:2px 7px;border-radius:4px;">${proj.name}</span>` : ""}</div>`;
     gh.appendChild(card);
     document.body.appendChild(gh);
-    // Trigger pickup animation next frame
+    // Trigger pickup animation, then remove transition so tilt is instant
     requestAnimationFrame(() => requestAnimationFrame(() => {
       card.style.transform = "translate(-50%,-50%) scale(1) rotate(0deg)";
       card.style.opacity = "1";
+      setTimeout(() => { card.style.transition = "none"; }, 300);
     }));
     ghostRef.current = gh;
     velXRef.current = 0;
