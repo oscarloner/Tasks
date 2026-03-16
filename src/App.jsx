@@ -322,6 +322,9 @@ function TaskApp({ user, onLogout }) {
   const [combining, setCombining] = useState(false);
   const [combineResult, setCombineResult] = useState(null);
   const activeTimerRef = useRef(null);
+  const ghostRef = useRef(null);
+  const velXRef = useRef(0);
+  const lastXRef = useRef(0);
   const tasksRef = useRef(tasks);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { activeTimerRef.current = activeTimer; }, [activeTimer]);
@@ -337,13 +340,32 @@ function TaskApp({ user, onLogout }) {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Track global drag state for combine panel
+  // Track global drag state + animate custom ghost
   useEffect(() => {
     const onStart = () => setDragging(true);
-    const onEnd = () => setDragging(false);
+    const onEnd = () => {
+      setDragging(false);
+      if (ghostRef.current) { ghostRef.current.remove(); ghostRef.current = null; }
+    };
+    const onMove = (e) => {
+      const gh = ghostRef.current;
+      if (!gh) return;
+      const dx = e.clientX - lastXRef.current;
+      velXRef.current = velXRef.current * 0.72 + dx * 0.38;
+      lastXRef.current = e.clientX;
+      const tilt = Math.max(-22, Math.min(22, velXRef.current * 1.5));
+      gh.style.left = e.clientX + "px";
+      gh.style.top = e.clientY + "px";
+      gh.firstElementChild.style.transform = `translate(-50%,-50%) rotate(${tilt}deg)`;
+    };
     document.addEventListener("dragstart", onStart);
     document.addEventListener("dragend", onEnd);
-    return () => { document.removeEventListener("dragstart", onStart); document.removeEventListener("dragend", onEnd); };
+    document.addEventListener("mousemove", onMove);
+    return () => {
+      document.removeEventListener("dragstart", onStart);
+      document.removeEventListener("dragend", onEnd);
+      document.removeEventListener("mousemove", onMove);
+    };
   }, []);
 
   const selectTab = (id) => {
@@ -534,17 +556,23 @@ function TaskApp({ user, onLogout }) {
   // Drag and drop
   const onDS = (e, id) => {
     setDragId(id); e.dataTransfer.effectAllowed = "move";
+    // Hide default HTML5 ghost
+    const blank = new Image();
+    blank.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+    e.dataTransfer.setDragImage(blank, 0, 0);
+    // Build animated custom ghost
     const task = tasks.find(t => t.id === id);
-    const ghost = document.createElement("div");
     const pc = { high: "#D4600A", medium: "#C8922A", low: "#B5AFA9" };
     const pb = { high: "#FFF3EC", medium: "#FFF8EC", low: "#F5F3F0" };
     const pri = task?.priority || "medium";
-    ghost.style.cssText = `position:fixed;top:-1000px;left:-1000px;background:#fff;border:1px solid #EDE9E3;border-radius:10px;padding:10px 14px;font-family:'Satoshi',sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.15);max-width:240px;min-width:160px;`;
     const proj = projects.find(p => p.id === task?.project);
-    ghost.innerHTML = `<div style="font-size:13.5px;font-weight:500;color:#1A1715;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${task?.title || ""}</div><div style="display:flex;gap:6px;flex-wrap:wrap;"><span style="font-size:10.5px;font-weight:600;color:${pc[pri]};background:${pb[pri]};padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.06em;">${pri}</span>${proj ? `<span style="font-size:10.5px;font-weight:600;color:#8C8580;background:#F5F3F0;padding:2px 8px;border-radius:4px;">${proj.name}</span>` : ""}</div>`;
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2);
-    setTimeout(() => document.body.removeChild(ghost), 0);
+    const gh = document.createElement("div");
+    gh.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;pointer-events:none;z-index:9999;`;
+    gh.innerHTML = `<div style="transform:translate(-50%,-50%);background:#fff;border:1px solid #EDE9E3;border-radius:10px;padding:10px 14px;font-family:'Satoshi',sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.18);max-width:240px;min-width:160px;animation:ghostPickup .32s cubic-bezier(.2,.8,.3,1.3) both;"><div style="font-size:13.5px;font-weight:500;color:#1A1715;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${task?.title || ""}</div><div style="display:flex;gap:6px;flex-wrap:wrap;"><span style="font-size:10.5px;font-weight:600;color:${pc[pri]};background:${pb[pri]};padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.06em;">${pri}</span>${proj ? `<span style="font-size:10.5px;font-weight:600;color:#8C8580;background:#F5F3F0;padding:2px 8px;border-radius:4px;">${proj.name}</span>` : ""}</div></div>`;
+    document.body.appendChild(gh);
+    ghostRef.current = gh;
+    velXRef.current = 0;
+    lastXRef.current = e.clientX;
   };
   const onDO = (e, id) => { e.preventDefault(); if (id !== dragId) setOverId(id); };
   const onDrop = (e, tid, sec) => {
@@ -682,7 +710,7 @@ function TaskApp({ user, onLogout }) {
     <div style={{ minHeight: "100vh", background: BG, color: T1, fontFamily: "'Satoshi', 'Helvetica Neue', sans-serif", display: "flex" }}>
       <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
       <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet" />
-      <style>{`*{box-sizing:border-box}::selection{background:${AM}}input:focus,textarea:focus,select:focus{outline:none;border-color:${AC}!important}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}.task-card{animation:fadeIn .25s ease both}.task-card:hover .grip-handle{opacity:1}.grip-handle{opacity:0;transition:opacity .15s}@media(max-width:640px){.grip-handle{display:none!important}.action-btn{opacity:1!important;min-width:36px!important;min-height:36px!important;width:36px!important;height:36px!important}}.action-btn{opacity:0;transition:all .15s}.task-card:hover .action-btn{opacity:1}.sb{transition:all .15s}.sb:hover{background:${AL};color:${AC}}.modal-content{animation:modalIn .2s ease both}input,textarea,select{font-family:'Satoshi',sans-serif;font-size:16px!important}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${BD};border-radius:3px}.sidebar-overlay{display:none}@media(max-width:768px){.sidebar-overlay{display:block;position:fixed;inset:0;background:rgba(26,23,21,.3);z-index:49}}`}</style>
+      <style>{`*{box-sizing:border-box}::selection{background:${AM}}input:focus,textarea:focus,select:focus{outline:none;border-color:${AC}!important}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes ghostPickup{0%{transform:translate(-50%,-35%) scale(0.82) rotate(-5deg);opacity:0}65%{transform:translate(-50%,-55%) scale(1.04) rotate(3deg);opacity:1}100%{transform:translate(-50%,-50%) scale(1) rotate(0deg);opacity:1}}.task-card{animation:fadeIn .25s ease both}.task-card:hover .grip-handle{opacity:1}.grip-handle{opacity:0;transition:opacity .15s}@media(max-width:640px){.grip-handle{display:none!important}.action-btn{opacity:1!important;min-width:36px!important;min-height:36px!important;width:36px!important;height:36px!important}}.action-btn{opacity:0;transition:all .15s}.task-card:hover .action-btn{opacity:1}.sb{transition:all .15s}.sb:hover{background:${AL};color:${AC}}.modal-content{animation:modalIn .2s ease both}input,textarea,select{font-family:'Satoshi',sans-serif;font-size:16px!important}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${BD};border-radius:3px}.sidebar-overlay{display:none}@media(max-width:768px){.sidebar-overlay{display:block;position:fixed;inset:0;background:rgba(26,23,21,.3);z-index:49}}`}</style>
 
       {/* Sidebar overlay for mobile */}
       {sidebar && isMobile && <div className="sidebar-overlay" onClick={() => setSidebar(false)} />}
