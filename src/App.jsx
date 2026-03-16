@@ -304,6 +304,7 @@ function TaskApp({ user, onLogout }) {
   const [suggested, setSuggested] = useState(null);
   const [dragId, setDragId] = useState(null);
   const [overId, setOverId] = useState(null);
+  const [overCombine, setOverCombine] = useState(false);
   const [sidebar, setSidebar] = useState(false);
   const [form, setForm] = useState({ title: "", notes: "", project: "", priority: "medium", due_date: "" });
   const [mins, setMins] = useState(60);
@@ -586,7 +587,7 @@ function TaskApp({ user, onLogout }) {
     velXRef.current = 0;
     lastXRef.current = e.clientX;
   };
-  const onDO = (e, id) => { e.preventDefault(); if (id !== dragId) setOverId(id); };
+  const onDO = (e, id) => { e.preventDefault(); setOverId(id !== dragId ? id : null); };
   const onDrop = (e, tid, sec) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1023,7 +1024,11 @@ function TaskApp({ user, onLogout }) {
 
       {/* Action dock */}
       {(dragging || combineQueue.length > 0) && (
-        <div onDragOver={e => e.preventDefault()} onDrop={onDropCombine} style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "min(680px, calc(100vw - 32px))", background: dragging ? AL : W, border: `2px solid ${dragging ? AC : BD}`, borderRadius: 18, boxShadow: dragging ? `0 8px 40px rgba(212,96,10,.18)` : "0 8px 40px rgba(0,0,0,.1)", padding: "14px 16px", zIndex: 200, fontFamily: "'Satoshi',sans-serif", transition: "border-color .15s, background .15s, box-shadow .15s", display: "flex", alignItems: "center", gap: 8, minHeight: 56 }}>
+        <div
+          onDragOver={e => { e.preventDefault(); setOverCombine(true); }}
+          onDragLeave={() => setOverCombine(false)}
+          onDrop={e => { setOverCombine(false); onDropCombine(e); }}
+          style={{ position: "fixed", bottom: 24, left: "50%", transform: `translateX(-50%) scale(${overCombine ? 1.02 : 1})`, width: "min(680px, calc(100vw - 32px))", background: overCombine ? AM : dragging ? AL : W, border: `2px solid ${overCombine ? AC : dragging ? AC : BD}`, borderRadius: 18, boxShadow: overCombine ? `0 8px 48px rgba(212,96,10,.28)` : dragging ? `0 8px 40px rgba(212,96,10,.15)` : "0 8px 40px rgba(0,0,0,.1)", padding: "14px 16px", zIndex: 200, fontFamily: "'Satoshi',sans-serif", transition: "all .15s", display: "flex", alignItems: "center", gap: 8, minHeight: 56 }}>
           {/* Drop area / chips */}
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
             {combineQueue.length === 0
