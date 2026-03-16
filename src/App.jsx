@@ -603,13 +603,13 @@ function TaskApp({ user, onLogout }) {
       setTasks([...up]);
       (async () => { setSyncing(true); for (const b of batch) { try { await sb.updateTask(b.id, { sort_order: b.sort_order, in_priority: b.in_priority }); } catch {} } setSyncing(false); })();
     }
-    setDragId(null); setOverId(null); setDragging(false);
+    setDragId(null); setOverId(null); setDragging(false); if (ghostRef.current) { ghostRef.current.remove(); ghostRef.current = null; }
   };
   const onDropSec = (e, sec) => {
     e.preventDefault(); if (!dragId) return;
     const inP = sec === "priority"; const mx = filt.filter(t => t.in_priority === inP && !t.done && t.id !== dragId).length;
     setTasks(p => p.map(t => t.id === dragId ? { ...t, in_priority: inP, sort_order: mx } : t));
-    upd(dragId, { in_priority: inP, sort_order: mx }); setDragId(null); setOverId(null); setDragging(false);
+    upd(dragId, { in_priority: inP, sort_order: mx }); setDragId(null); setOverId(null); setDragging(false); if (ghostRef.current) { ghostRef.current.remove(); ghostRef.current = null; }
   };
 
   // Combine tasks (AI-powered)
@@ -1152,7 +1152,10 @@ function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggl
   const subsDone = subs.filter(s => s.done).length;
   const isTimerActive = activeTimer && activeTimer.taskId === t.id;
   const timeSpent = parseInt(t.time_spent) || 0;
+  const isDropTarget = dragId && dragId !== t.id && overId === t.id && !isDone;
   return (
+    <>
+    {isDropTarget && <div style={{ height: 3, background: AC, borderRadius: 2, margin: "2px 2px 3px", opacity: 0.85, transition: "opacity .1s" }} />}
     <div className="task-card" draggable={!isDone} onDragStart={e => onDS(e, t.id)} onDragOver={e => onDO(e, t.id)} onDrop={e => onDr(e, t.id)} onDoubleClick={() => { if (!isDone && window.innerWidth > 640) onEdit(t); }} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 4, background: isTimerActive ? "#FFF8F2" : W, border: `1px solid ${isTimerActive ? AC : BD}`, borderRadius: 10, cursor: isDone ? "default" : "grab", opacity: isDone ? .45 : dragId === t.id ? .35 : 1, transition: "opacity .15s, background .15s", animationDelay: `${i * .03}s` }}>
       {!isDone && <div className="grip-handle" style={{ paddingTop: 5, cursor: "grab" }}><IC.grip /></div>}
       <button onClick={() => onToggle(t.id)} style={{ width: 24, height: 24, minWidth: 24, marginTop: 0, border: `1.5px solid ${isDone ? "#8CB88C" : pc[t.priority]}`, borderRadius: 6, background: isDone ? "#8CB88C" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", padding: 0 }}>{isDone && <IC.check />}</button>
@@ -1189,6 +1192,7 @@ function Card({ task: t, index: i, showProj, isDone, projName, projects, onToggl
         <Abtn t="Edit" onClick={() => onEdit(t)}><IC.edit /></Abtn>
       </div>}
     </div>
+    </>
   );
 }
 
