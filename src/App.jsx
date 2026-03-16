@@ -555,10 +555,13 @@ function TaskApp({ user, onLogout }) {
   // Drag and drop
   const onDS = (e, id) => {
     setDragId(id); e.dataTransfer.effectAllowed = "move";
-    // Hide default HTML5 ghost using canvas (loads instantly, no globe icon)
+    // Hide default HTML5 ghost using canvas (must be in DOM)
     const canvas = document.createElement("canvas");
     canvas.width = 1; canvas.height = 1;
+    canvas.style.cssText = "position:fixed;top:-10px;left:-10px;opacity:0;";
+    document.body.appendChild(canvas);
     e.dataTransfer.setDragImage(canvas, 0, 0);
+    setTimeout(() => canvas.remove(), 0);
     // Build animated custom ghost
     const task = tasks.find(t => t.id === id);
     const pc = { high: "#D4600A", medium: "#C8922A", low: "#B5AFA9" };
