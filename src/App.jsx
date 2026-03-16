@@ -1023,14 +1023,10 @@ function TaskApp({ user, onLogout }) {
 
       {/* Action dock */}
       {(dragging || combineQueue.length > 0) && (
-        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "min(680px, calc(100vw - 32px))", background: W, border: `1.5px solid ${BD}`, borderRadius: 18, boxShadow: "0 8px 40px rgba(0,0,0,.13)", padding: "14px 16px", zIndex: 200, fontFamily: "'Satoshi',sans-serif", transition: "border-color .15s" }}>
-          {/* Label */}
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: T3, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>Aksjoner</div>
-          {/* Combine zone */}
-          <div onDragOver={e => e.preventDefault()} onDrop={onDropCombine} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", background: dragging ? AL : BG, border: `1.5px dashed ${dragging ? AC : BD}`, borderRadius: 12, padding: "12px 14px", minHeight: 52, transition: "background .15s, border-color .15s" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: T3, textTransform: "uppercase", letterSpacing: ".06em", marginRight: 4, whiteSpace: "nowrap" }}>Kombiner</span>
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", width: "min(680px, calc(100vw - 32px))", background: W, border: `1.5px solid ${dragging ? AC : BD}`, borderRadius: 18, boxShadow: "0 8px 40px rgba(0,0,0,.13)", padding: "12px 14px", zIndex: 200, fontFamily: "'Satoshi',sans-serif", transition: "border-color .15s, background .15s", background: dragging ? AL : W }}>
+          <div onDragOver={e => e.preventDefault()} onDrop={onDropCombine} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minHeight: 36 }}>
             {combineQueue.length === 0
-              ? <span style={{ fontSize: 13, color: dragging ? AC : T3, fontWeight: 500 }}>{dragging ? "Slipp task her" : "Dra tasks hit"}</span>
+              ? <span style={{ fontSize: 13, color: dragging ? AC : T3, fontWeight: 500 }}>{dragging ? "Slipp task her for å kombinere" : "Dra tasks hit for å kombinere"}</span>
               : combineQueue.map(t => (
                   <span key={t.id} style={{ display: "flex", alignItems: "center", gap: 4, background: W, border: `1px solid ${BD}`, borderRadius: 20, padding: "4px 10px", fontSize: 13, color: T1, fontWeight: 500 }}>
                     {t.title}
@@ -1048,9 +1044,8 @@ function TaskApp({ user, onLogout }) {
                 </button>
               )}
             </div>
+            <button onClick={() => { setCombineQueue([]); setCombineResult(null); }} style={{ marginLeft: "auto", background: "none", border: "none", color: T3, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4, flexShrink: 0 }}>×</button>
           </div>
-          {/* Close */}
-          <button onClick={() => { setCombineQueue([]); setCombineResult(null); }} style={{ position: "absolute", top: 12, right: 14, background: "none", border: "none", color: T3, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
         </div>
       )}
 
