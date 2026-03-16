@@ -360,11 +360,11 @@ function TaskApp({ user, onLogout }) {
     };
     document.addEventListener("dragstart", onStart);
     document.addEventListener("dragend", onEnd);
-    document.addEventListener("mousemove", onMove);
+    document.addEventListener("dragover", onMove);
     return () => {
       document.removeEventListener("dragstart", onStart);
       document.removeEventListener("dragend", onEnd);
-      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("dragover", onMove);
     };
   }, []);
 
